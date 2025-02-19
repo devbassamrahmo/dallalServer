@@ -1,18 +1,35 @@
 const Ad = require("../models/Ad");
+const CarAd = require("../models/CarAd");
+const RealEstateAd = require("../models/RealEstateAd");
+const BikeAd = require("../models/BikeAd");
 
-// ✅ Create Ad (Only Authenticated Users)
+// ✅ Create an Ad Based on Category
 const createAd = async (req, res) => {
   try {
-    const { title, description, price, category, location, images } = req.body;
-    const newAd = new Ad({ 
-      title, 
-      description, 
-      price, 
-      category, 
-      location, 
-      images, 
-      user: req.user.id  // ✅ Store ad owner ID from JWT
-    });
+    const { title, location, images, condition, category, priceSYP, priceUSD, description, additionalFields } = req.body;
+
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({ message: "Unauthorized. Please login." });
+    }
+
+    let newAd;
+
+    switch (category) {
+      case "car":
+        newAd = new CarAd({ title, location, images, condition, category, priceSYP, priceUSD, description, user: req.user.id, ...additionalFields });
+        break;
+      case "bike":
+        newAd = new BikeAd({ title, location, images, condition, category, priceSYP, priceUSD, description, user: req.user.id, ...additionalFields });
+        break;
+      case "real_estate":
+        newAd = new RealEstateAd({ title, location, images, condition, category, priceSYP, priceUSD, description, user: req.user.id, ...additionalFields });
+        break;
+      case "electronics":
+        newAd = new ElectronicsAd({ title, location, images, condition, category, priceSYP, priceUSD, description, user: req.user.id, ...additionalFields });
+        break;
+      default:
+        newAd = new GeneralAd({ title, location, images, condition, category, priceSYP, priceUSD, description, user: req.user.id, ...additionalFields });
+    }
 
     await newAd.save();
     res.status(201).json({ message: "Ad created successfully", ad: newAd });
@@ -21,7 +38,7 @@ const createAd = async (req, res) => {
   }
 };
 
-// ✅ Get All Ads (Public)
+// ✅ Get All Ads
 const getAllAds = async (req, res) => {
   try {
     const ads = await Ad.find().populate("user", "username email");
@@ -31,7 +48,7 @@ const getAllAds = async (req, res) => {
   }
 };
 
-// ✅ Get Ad by ID (Public)
+// ✅ Get Ad by ID
 const getAdById = async (req, res) => {
   try {
     const ad = await Ad.findById(req.params.id).populate("user", "username email");
@@ -43,31 +60,13 @@ const getAdById = async (req, res) => {
   }
 };
 
-// ✅ Update Ad (Only Owner Can Edit)
-const updateAd = async (req, res) => {
-  try {
-    const ad = await Ad.findById(req.params.id);
-    if (!ad) return res.status(404).json({ message: "Ad not found" });
-
-    // ✅ Check if the user is the owner
-    if (ad.user.toString() !== req.user.id) {
-      return res.status(403).json({ message: "Unauthorized to update this ad" });
-    }
-
-    const updatedAd = await Ad.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    res.status(200).json({ message: "Ad updated successfully", ad: updatedAd });
-  } catch (error) {
-    res.status(500).json({ message: "Error updating ad", error: error.message });
-  }
-};
-
 // ✅ Delete Ad (Only Owner Can Delete)
 const deleteAd = async (req, res) => {
   try {
     const ad = await Ad.findById(req.params.id);
     if (!ad) return res.status(404).json({ message: "Ad not found" });
 
-    // ✅ Check if the user is the owner
+    // Ensure only the owner can delete
     if (ad.user.toString() !== req.user.id) {
       return res.status(403).json({ message: "Unauthorized to delete this ad" });
     }
@@ -79,4 +78,4 @@ const deleteAd = async (req, res) => {
   }
 };
 
-module.exports = { createAd, getAllAds, getAdById, updateAd, deleteAd };
+module.exports = { createAd, getAllAds, getAdById, deleteAd };
