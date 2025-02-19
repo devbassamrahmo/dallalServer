@@ -8,8 +8,9 @@ const cors = require('cors');
 const app = express();
 const PORT = process.env.PORT || 8000;
 
-app.use(express.json()); // ✅ Add this to parse JSON data
+app.use(express.json()); 
 app.use(express.urlencoded({ extended: true }));
+
 
 // Routes
 const userRouter = require('./routes/userRouter')
