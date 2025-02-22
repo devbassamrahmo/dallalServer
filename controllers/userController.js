@@ -13,6 +13,52 @@ const transporter = nodemailer.createTransport({
       pass: process.env.EMAIL_PASS
     }
   });
+  const registerUser = async (req, res) => {
+    try {
+      const { firstname, lastname, username, email, password, phoneNumber } = req.body;
+  
+      const existingUser = await User.findOne({ email });
+      if (existingUser) return res.status(400).json({ message: "المستخدم مسجل مسبقًا" });
+  
+      const hashedPassword = await bcrypt.hash(password, saltRounds);
+      const otpCode = Math.floor(100000 + Math.random() * 900000); // Generate OTP
+  
+      // Set OTP expiration to 5 minutes from now (300000ms)
+      const otpExpires = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes expiry time
+  
+      const newUser = new User({
+        firstname, lastname, username, email, password: hashedPassword, phoneNumber,
+        otp: otpCode,
+        otpExpires: otpExpires // Set the OTP expiry time
+      });
+  
+      await newUser.save();
+  
+      // Send OTP via email
+      const mailOptions = {
+        from: process.env.EMAIL_USER,
+        to: email,
+        subject: "رمز التحقق OTP من دلال",
+        text: `كود التحقق الخاص بك هو: ${otpCode}`
+      };
+      await transporter.sendMail(mailOptions);
+  
+      // Set timeout to delete the user if OTP is not verified within 5 minutes
+      setTimeout(async () => {
+        const userInDb = await User.findOne({ email });
+        if (userInDb && !userInDb.isVerified && new Date() > userInDb.otpExpires) {
+          await User.deleteOne({ email }); // Delete user if OTP expired without verification
+          console.log("User deleted due to OTP expiration");
+        }
+      }, 5 * 60 * 1000); // 5 minutes timeout (300,000ms)
+  
+      res.status(201).json({ message: "تم تسجيل الحساب بنجاح، تحقق من بريدك الإلكتروني لإدخال كود OTP" });
+    } catch (error) {
+      res.status(500).json({ message: "خطأ أثناء التسجيل", error: error.message });
+    }
+  };
+  
+  
   const verifyOTP = async (req, res) => {
     try {
       const { email, otp } = req.body;
@@ -24,11 +70,13 @@ const transporter = nodemailer.createTransport({
   
       if (user.otp !== otp) return res.status(400).json({ message: "OTP غير صحيح" });
   
-      if (new Date() > user.otpExpires) return res.status(400).json({ message: "انتهت صلاحية OTP، يرجى طلب كود جديد" });
+      if (new Date() > user.otpExpires) {
+        return res.status(400).json({ message: "انتهت صلاحية OTP، يرجى طلب كود جديد" });
+      }
   
       user.isVerified = true;
-      user.otp = null; // ✅ إزالة الكود بعد التحقق
-      user.otpExpires = null;
+      user.otp = null; // Remove OTP after verification
+      user.otpExpires = null; // Remove OTP expiration time
       await user.save();
   
       res.status(200).json({ message: "تم التحقق من الحساب بنجاح" });
@@ -36,6 +84,9 @@ const transporter = nodemailer.createTransport({
       res.status(500).json({ message: "خطأ أثناء التحقق من OTP", error: error.message });
     }
   };
+  
+
+  
   const resendOTP = async (req, res) => {
     try {
       const { email } = req.body;
@@ -63,38 +114,7 @@ const transporter = nodemailer.createTransport({
       res.status(500).json({ message: "خطأ أثناء إعادة إرسال OTP", error: error.message });
     }
   };
-  const registerUser = async (req, res) => {
-    try {
-      const { firstname, lastname, username, email, password, phoneNumber } = req.body;
-  
-      const existingUser = await User.findOne({ email });
-      if (existingUser) return res.status(400).json({ message: "المستخدم مسجل مسبقًا" });
-  
-      const hashedPassword = await bcrypt.hash(password, saltRounds);
-      const otpCode = Math.floor(100000 + Math.random() * 900000); // ✅ توليد OTP عشوائي 6 أرقام
-  
-      const newUser = new User({
-        firstname, lastname, username, email, password: hashedPassword, phoneNumber,
-        otp: otpCode,
-        otpExpires: new Date(Date.now() + 10 * 60 * 1000) // ✅ مدة صلاحية 10 دقائق
-      });
-  
-      await newUser.save();
-  
-      // ✅ إرسال OTP عبر البريد الإلكتروني
-      const mailOptions = {
-        from: process.env.EMAIL_USER,
-        to: email,
-        subject: "رمز التحقق OTP من دلال",
-        text: `كود التحقق الخاص بك هو: ${otpCode}`
-      };
-      await transporter.sendMail(mailOptions);
-  
-      res.status(201).json({ message: "تم تسجيل الحساب بنجاح، تحقق من بريدك الإلكتروني لإدخال كود OTP" });
-    } catch (error) {
-      res.status(500).json({ message: "خطأ أثناء التسجيل", error: error.message });
-    }
-  };
+ 
 
 const loginUser = async (req, res) => {
   try {
