@@ -16,7 +16,7 @@ const createAd = async (req, res) => {
       return res.status(400).json({ message: "At least one image is required" });
     }
 
-    const imageUrls = req.files.map((file) => file.path); // ✅ Get Cloudinary URLs
+    const imageUrls = req.files.map((file) => file.path);
 
     const newAd = new Ad({
       title,
@@ -27,13 +27,59 @@ const createAd = async (req, res) => {
       description,
       images: imageUrls,
       user: req.user.id,
+      status: "pending", // ✅ New ads are pending by default
+      expiresAt: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000), // ✅ 15-day expiry
       ...additionalFields,
     });
 
     await newAd.save();
-    res.status(201).json({ message: "Ad created successfully", ad: newAd });
+    res.status(201).json({ message: "Ad submitted for approval", ad: newAd });
   } catch (error) {
     res.status(500).json({ message: "Error creating ad", error: error.message });
+  }
+};
+
+const approveAd = async (req, res) => {
+  try {
+    const { status } = req.body; // "approved" or "rejected"
+
+    if (!req.user || req.user.role !== "admin") {
+      return res.status(403).json({ message: "Access denied. Admins only." });
+    }
+
+    const ad = await Ad.findById(req.params.id);
+    if (!ad) return res.status(404).json({ message: "Ad not found" });
+
+    ad.status = status;
+    await ad.save();
+
+    res.status(200).json({ message: `Ad ${status} successfully`, ad });
+  } catch (error) {
+    res.status(500).json({ message: "Error approving ad", error: error.message });
+  }
+};
+
+const refreshAd = async (req, res) => {
+  try {
+    const ad = await Ad.findById(req.params.id);
+    if (!ad) return res.status(404).json({ message: "Ad not found" });
+
+    if (ad.user.toString() !== req.user.id) {
+      return res.status(403).json({ message: "Unauthorized to refresh this ad" });
+    }
+
+    const daysLeft = Math.ceil((ad.expiresAt - new Date()) / (1000 * 60 * 60 * 24));
+
+    if (daysLeft > 5) {
+      return res.status(400).json({ message: "You can only refresh the ad in the last 5 days." });
+    }
+
+    ad.expiresAt = new Date(Date.now() + 15 * 24 * 60 * 60 * 1000); // Reset to 15 days
+    await ad.save();
+
+    res.status(200).json({ message: "Ad refreshed successfully", ad });
+  } catch (error) {
+    res.status(500).json({ message: "Error refreshing ad", error: error.message });
   }
 };
 
@@ -41,21 +87,23 @@ const createAd = async (req, res) => {
 const getAllAds = async (req, res) => {
   try {
     const { search, category, location, minPrice, maxPrice, condition, page = 1, limit = 10 } = req.query;
-    let filter = {};
+    let filter = { status: "approved" }; // ✅ Show only approved ads
+
+    // 🔍 Search by Title or Description
     if (search) {
       filter.$or = [
-        { title: { $regex: search, $options: "i" } }, 
+        { title: { $regex: search, $options: "i" } },
         { description: { $regex: search, $options: "i" } }
       ];
     }
 
-    //by Category
+    // 🎯 Filter by Category
     if (category) filter.category = category;
 
-    //by Location
+    // 📍 Filter by Location
     if (location) filter.location = { $regex: location, $options: "i" };
 
-    //by Price Range
+    // 💰 Filter by Price Range
     if (minPrice || maxPrice) {
       filter.$or = [
         { priceSYP: {} },
@@ -71,13 +119,13 @@ const getAllAds = async (req, res) => {
       }
     }
 
-    //Condition (new/used/furnished/etc.)
+    // ✅ Filter by Condition (new, used, furnished, etc.)
     if (condition) filter.condition = condition;
 
-    // Pagination
+    // 📌 Pagination
     const skip = (page - 1) * limit;
 
-    // Get Ads with Filters
+    // 🔥 Get Ads with Filters
     const ads = await Ad.find(filter).skip(skip).limit(parseInt(limit));
 
     res.status(200).json({ total: ads.length, ads });
@@ -123,4 +171,4 @@ const deleteAd = async (req, res) => {
 };
 
 
-module.exports = { createAd, getAllAds, getAdById, deleteAd };
+module.exports = { createAd, getAllAds, getAdById, deleteAd , approveAd, refreshAd };

@@ -18,6 +18,8 @@ const adSchema = new mongoose.Schema(
     priceUSD: { type: Number, required: true }, // Price in USD
     description: { type: String, required: true },
     user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+    status: { type: String, enum: ["pending", "approved", "rejected"], default: "pending" }, 
+    expiresAt: { type: Date },
   },
   { timestamps: true, discriminatorKey: "categoryType" }
 );
