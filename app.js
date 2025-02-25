@@ -1,4 +1,3 @@
-// server.js
 const express = require('express');
 const mongoose = require('mongoose');
 const bodyParser = require('body-parser');
@@ -8,33 +7,39 @@ const cors = require('cors');
 const app = express();
 const PORT = process.env.PORT || 8000;
 
-app.use(express.json()); 
-app.use(express.urlencoded({ extended: true }));
-
-
-// Routes
-const userRouter = require('./routes/userRouter')
-app.use('/user' , userRouter);
-const adRouter = require('./routes/adRouter')
-app.use('/ad' , adRouter);
-
 // Middleware
-app.use(cors());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 
+// CORS setup with credentials and specific origin
+const corsOptions = {
+  origin: 'http://localhost:3000', // Update with your frontend URL
+  credentials: true,  // Allow credentials (cookies, HTTP authentication)
+};
+
+app.use(cors(corsOptions));
+
+// Routes
+const userRouter = require('./routes/userRouter');
+app.use('/user', userRouter);
+
+const adRouter = require('./routes/adRouter');
+app.use('/ad', adRouter);
+
 // MongoDB Connection
-
-app.get('/' , (req,res) =>{
-    res.send("you are in home page")
-})
-
-mongoose.connect(process.env.DB_URL).then(()=>{
+mongoose.connect(process.env.DB_URL)
+  .then(() => {
+    // Start the server after DB connection is successful
     app.listen(PORT, () => {
-        console.log(`Server is running on port ${PORT}`);
+      console.log(`⁠ Server is running on port ${PORT}`);
     });
-}).catch((error) =>{
-    console.log(error)
+  })
+  .catch((error) => {
+    console.log('MongoDB connection error:', error);
+  });
+
+// Home route for testing
+app.get('/', (req, res) => {
+  res.send("You are on the home page");
 });
-
-
-

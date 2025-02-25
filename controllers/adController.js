@@ -2,34 +2,33 @@ const Ad = require("../models/Ad");
 const CarAd = require("../models/CarAd");
 const RealEstateAd = require("../models/RealEstateAd");
 const BikeAd = require("../models/BikeAd");
-
+const cloudinary = require("../config/cloudinary");
 // ✅ Create an Ad Based on Category
 const createAd = async (req, res) => {
   try {
-    const { title, location, images, condition, category, priceSYP, priceUSD, description, additionalFields } = req.body;
+    const { title, location, category, priceSYP, priceUSD, description, additionalFields } = req.body;
 
     if (!req.user || !req.user.id) {
       return res.status(401).json({ message: "Unauthorized. Please login." });
     }
 
-    let newAd;
-
-    switch (category) {
-      case "car":
-        newAd = new CarAd({ title, location, images, condition, category, priceSYP, priceUSD, description, user: req.user.id, ...additionalFields });
-        break;
-      case "bike":
-        newAd = new BikeAd({ title, location, images, condition, category, priceSYP, priceUSD, description, user: req.user.id, ...additionalFields });
-        break;
-      case "real_estate":
-        newAd = new RealEstateAd({ title, location, images, condition, category, priceSYP, priceUSD, description, user: req.user.id, ...additionalFields });
-        break;
-      case "electronics":
-        newAd = new ElectronicsAd({ title, location, images, condition, category, priceSYP, priceUSD, description, user: req.user.id, ...additionalFields });
-        break;
-      default:
-        newAd = new GeneralAd({ title, location, images, condition, category, priceSYP, priceUSD, description, user: req.user.id, ...additionalFields });
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ message: "At least one image is required" });
     }
+
+    const imageUrls = req.files.map((file) => file.path); // ✅ Get Cloudinary URLs
+
+    const newAd = new Ad({
+      title,
+      location,
+      category,
+      priceSYP,
+      priceUSD,
+      description,
+      images: imageUrls,
+      user: req.user.id,
+      ...additionalFields,
+    });
 
     await newAd.save();
     res.status(201).json({ message: "Ad created successfully", ad: newAd });
@@ -106,9 +105,14 @@ const deleteAd = async (req, res) => {
     const ad = await Ad.findById(req.params.id);
     if (!ad) return res.status(404).json({ message: "Ad not found" });
 
-    // Ensure only the owner can delete
     if (ad.user.toString() !== req.user.id) {
       return res.status(403).json({ message: "Unauthorized to delete this ad" });
+    }
+
+    // 🔥 Delete images from Cloudinary
+    for (const imgUrl of ad.images) {
+      const publicId = imgUrl.split("/").pop().split(".")[0];
+      await cloudinary.uploader.destroy(`ads/${publicId}`);
     }
 
     await ad.deleteOne();
@@ -117,5 +121,6 @@ const deleteAd = async (req, res) => {
     res.status(500).json({ message: "Error deleting ad", error: error.message });
   }
 };
+
 
 module.exports = { createAd, getAllAds, getAdById, deleteAd };
