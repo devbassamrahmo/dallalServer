@@ -39,6 +39,20 @@ const createAd = async (req, res) => {
   }
 };
 
+const getUserAds = async (req, res) => {
+  try {
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({ message: "Unauthorized. Please login." });
+    }
+
+    const userAds = await Ad.find({ user: req.user.id });
+
+    res.status(200).json({ total: userAds.length, ads: userAds });
+  } catch (error) {
+    res.status(500).json({ message: "Error fetching user ads", error: error.message });
+  }
+};
+
 const approveAd = async (req, res) => {
   try {
     const { status } = req.body; // "approved" or "rejected"
@@ -171,4 +185,4 @@ const deleteAd = async (req, res) => {
 };
 
 
-module.exports = { createAd, getAllAds, getAdById, deleteAd , approveAd, refreshAd };
+module.exports = { createAd, getAllAds, getAdById, deleteAd , approveAd, refreshAd , getUserAds};
