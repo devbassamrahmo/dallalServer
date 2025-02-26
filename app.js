@@ -13,13 +13,12 @@ app.use(express.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 
 // CORS setup with credentials and specific origin
-const corsOptions = {
-  origin: 'http://localhost:3000', // Update with your frontend URL
-  credentials: true,  // Allow credentials (cookies, HTTP authentication)
-};
-
-app.use(cors(corsOptions));
-
+app.use(
+  cors({
+    origin: ["http://localhost:3000", "https://ecommerce3-ahmd.netlify.app"], // السماح بالموقع الحقيقي
+    credentials: true, // للسماح بالكوكيز إذا لزم الأمر
+  })
+);
 // Routes
 const userRouter = require('./routes/userRouter');
 app.use('/user', userRouter);
