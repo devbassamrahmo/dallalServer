@@ -1,12 +1,11 @@
 const Ad = require("../models/Ad");
-const CarAd = require("../models/CarAd");
+const { CarAd, BikeAd } = require("../models/CarAd");
 const RealEstateAd = require("../models/RealEstateAd");
-const BikeAd = require("../models/BikeAd");
 const cloudinary = require("../config/cloudinary");
 // ✅ Create an Ad Based on Category
 const createAd = async (req, res) => {
   try {
-    const { title, location, category, priceSYP, priceUSD, description, additionalFields } = req.body;
+    const { title, location, category, condition, priceSYP, priceUSD, description } = req.body;
 
     if (!req.user || !req.user.id) {
       return res.status(401).json({ message: "Unauthorized. Please login." });
@@ -17,20 +16,49 @@ const createAd = async (req, res) => {
     }
 
     const imageUrls = req.files.map((file) => file.path);
+    let newAd;
 
-    const newAd = new Ad({
-      title,
-      location,
-      category,
-      priceSYP,
-      priceUSD,
-      description,
-      images: imageUrls,
-      user: req.user.id,
-      status: "pending", // ✅ New ads are pending by default
-      expiresAt: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000), // ✅ 15-day expiry
-      ...additionalFields,
-    });
+    switch (category) {
+      case "car":
+        newAd = new CarAd({
+          title, location, category, condition, priceSYP, priceUSD, description, images: imageUrls, user: req.user.id,
+          transmission: req.body.transmission || "",
+          vehicleType: req.body.vehicleType || "",
+          mileage: req.body.mileage || 0
+        });
+        break;
+
+      case "bike":
+        newAd = new BikeAd({
+          title, location, category, condition, priceSYP, priceUSD, description, images: imageUrls, user: req.user.id,
+          transmission: req.body.transmission || "",
+          vehicleType: req.body.vehicleType || "",
+          mileage: req.body.mileage || 0
+        });
+        break;
+
+      case "real_estate":
+        newAd = new RealEstateAd({
+          title, location, category, condition, priceSYP, priceUSD, description, images: imageUrls, user: req.user.id,
+          propertyType: req.body.propertyType || "",
+          deedType: req.body.deedType || "",
+          newHousingProject: req.body.newHousingProject === "true" // Convert to boolean
+        });
+        break;
+
+      case "electronics":
+        newAd = new ElectronicsAd({
+          title, location, category, condition, priceSYP, priceUSD, description, images: imageUrls, user: req.user.id,
+          deviceType: req.body.deviceType || ""
+        });
+        break;
+
+      default:
+        newAd = new GeneralAd({
+          title, location, category, condition, priceSYP, priceUSD, description, images: imageUrls, user: req.user.id,
+          adType: req.body.adType || ""
+        });
+    }
 
     await newAd.save();
     res.status(201).json({ message: "Ad submitted for approval", ad: newAd });
