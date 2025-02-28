@@ -8,7 +8,7 @@ const adSchema = new mongoose.Schema(
     category: {
       type: String,
       required: true,
-      enum: ["car", "bike", "real_estate", "electronics", "furniture", "education", "services", "pets", "jobs", "others"],
+      enum: ["car", "bike", "real_estate", "electronics", "furniture", "education", "services", "pets", "jobs", "parties" ,"others"],
     },
     priceSYP: { type: Number, required: true },
     priceUSD: { type: Number, required: true },
