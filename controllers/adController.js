@@ -1,6 +1,8 @@
 const Ad = require("../models/Ad");
 const { CarAd, BikeAd } = require("../models/CarAd");
 const RealEstateAd = require("../models/RealEstateAd");
+const ElectronicsAd = require("../models/ElectronicsAd");
+const GeneralAd = require("../models/GeneralAd");
 const cloudinary = require("../config/cloudinary");
 // ✅ Create an Ad Based on Category
 const createAd = async (req, res) => {
