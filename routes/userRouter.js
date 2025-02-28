@@ -19,7 +19,7 @@ router.post("/register", registerUser);
 router.post("/verify-otp", verifyOTP); 
 router.post("/resend-otp", resendOTP);  
 router.post("/login", loginUser);
-router.get("/", isAdmin , getAllUsers);
+router.get("/", protect, isAdmin , getAllUsers);
 router.get("/:id", getUserById);
 router.put("/:id", updateUser);
 router.delete("/:id", deleteUser);
