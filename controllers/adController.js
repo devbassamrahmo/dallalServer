@@ -225,5 +225,28 @@ const deleteByAdmin = async (req , res) =>{
 }
 }
 
+const getAllAdsAdmin = async (req,res) =>{
+  try{
+  const ads = await Ad.find();
+  res.status(200).json({ads}) 
+  }catch(err){
+    console.log(err)
+  }
+}
 
-module.exports = { createAd, getAllAds, getAdById, deleteAd , approveAd, refreshAd , getUserAds , deleteByAdmin};
+const getPendingPosts = async (req, res) =>{
+  try {
+    // ✅ Fetch ads where status is "pending"
+    const pendingAds = await Ad.find({ status: 'pending' });
+
+    if (!pendingAds.length) {
+        return res.status(404).json({ message: 'No pending ads found' });
+    }
+
+    res.status(200).json(pendingAds);
+} catch (error) {
+    console.error('Error fetching pending ads:', error);
+    res.status(500).json({ message: 'Error fetching pending ads', error: error.message });
+}
+}
+module.exports = { createAd, getAllAds, getAdById, deleteAd , approveAd, refreshAd , getUserAds , deleteByAdmin , getAllAdsAdmin , getPendingPosts};
