@@ -124,7 +124,7 @@ const refreshAd = async (req, res) => {
 // ✅ Get All Ads
 const getAllAds = async (req, res) => {
   try {
-    const { search, category, location, minPrice, maxPrice, condition, page = 1, limit = 10 } = req.query;
+    const { search, category, location, minPrice, maxPrice, condition, page = 1, limit = 100 } = req.query;
     let filter = { status: "approved" }; // ✅ Show only approved ads
 
     // 🔍 Search by Title or Description
@@ -237,7 +237,7 @@ const getAllAdsAdmin = async (req,res) =>{
 const getPendingPosts = async (req, res) =>{
   try {
     // ✅ Fetch ads where status is "pending"
-    const pendingAds = await Ad.find({ status: 'pending' });
+    const pendingAds = await Ad.find({ status: 'approved' });
 
     if (!pendingAds.length) {
         return res.status(404).json({ message: 'No pending ads found' });
