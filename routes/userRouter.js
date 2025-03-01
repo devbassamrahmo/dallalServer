@@ -2,7 +2,6 @@ const express = require("express");
 const router = express.Router();
 const cors = require("cors");
 const { protect , isAdmin} = require("../middlewares/authMiddleware");
-const { verifyAdmin } = require('../middleware/auth');
 
 const {
   registerUser,
@@ -25,5 +24,5 @@ router.get("/", protect, isAdmin , getAllUsers);
 router.get("/:id", getUserById);
 router.put("/:id", updateUser);
 router.delete("/:id", deleteUser);
-router.get('/user-ads/:userId', verifyAdmin, getUserAds)
+router.get('/user-ads/:userId',  protect , isAdmin, getUserAds)
 module.exports = router;
