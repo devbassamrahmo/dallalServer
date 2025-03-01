@@ -195,6 +195,24 @@ const deleteUser = async (req, res) => {
   }
 };
 
+const getUserAds = async (req , res) =>{
+  try {
+    const userId = req.params.userId;
+
+    // ✅ Fetch ads by user ID
+    const ads = await Ad.find({ user: userId });
+
+    if (!ads.length) {
+        return res.status(404).json({ message: 'No ads found for this user' });
+    }
+
+    res.status(200).json(ads);
+} catch (error) {
+    console.error('Error fetching user ads:', error);
+    res.status(500).json({ message: 'Error fetching ads', error: error.message });
+}
+}
+
 module.exports = {
   registerUser,
   loginUser,
@@ -203,5 +221,6 @@ module.exports = {
   updateUser,
   deleteUser,
   verifyOTP,
-  resendOTP
+  resendOTP,
+  getUserAds
 };

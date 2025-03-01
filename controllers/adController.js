@@ -52,7 +52,7 @@ const createAd = async (req, res) => {
       default:
         newAd = new GeneralAd({
           title, location, category, priceSYP, priceUSD, description, images: imageUrls, user: req.user.id,
-          condition, adType: req.body.adType || ""
+          condition
         });
     }
 
@@ -208,5 +208,22 @@ const deleteAd = async (req, res) => {
   }
 };
 
+const deleteByAdmin = async (req , res) =>{
+  try {
+    const adId = req.params.adId;
 
-module.exports = { createAd, getAllAds, getAdById, deleteAd , approveAd, refreshAd , getUserAds};
+    // ✅ Find and delete ad
+    const deletedAd = await Ad.findByIdAndDelete(adId);
+    if (!deletedAd) {
+        return res.status(404).json({ message: 'Ad not found' });
+    }
+
+    res.status(200).json({ message: 'Ad deleted successfully', deletedAd });
+} catch (error) {
+    console.error('Error deleting ad:', error);
+    res.status(500).json({ message: 'Error deleting ad', error: error.message });
+}
+}
+
+
+module.exports = { createAd, getAllAds, getAdById, deleteAd , approveAd, refreshAd , getUserAds , deleteByAdmin};
