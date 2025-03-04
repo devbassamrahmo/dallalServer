@@ -28,5 +28,5 @@ router.put("/:id", updateUser);
 router.delete("/:id", deleteUser);
 router.get('/user-ads/:userId',  protect , isAdmin, getUserAds)
 router.post('/refresh-token' , refreshToken);
-router.post('logout' , protect , logout);
+router.post('/logout' , protect , logout);
 module.exports = router;
