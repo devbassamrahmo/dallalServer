@@ -249,4 +249,36 @@ const getPendingPosts = async (req, res) =>{
     res.status(500).json({ message: 'Error fetching pending ads', error: error.message });
 }
 }
-module.exports = { createAd, getAllAds, getAdById, deleteAd , approveAd, refreshAd , getUserAds , deleteByAdmin , getAllAdsAdmin , getPendingPosts};
+
+
+const approveAll = async (req , res) =>{
+  
+  try {
+    const updatedAds = await Ad.updateMany({ status: 'pending' }, { status: 'approved' });
+
+    if (updatedAds.modifiedCount === 0) {
+        return res.status(404).json({ message: 'No pending ads found to approve' });
+    }
+
+    res.status(200).json({ message: `Approved ${updatedAds.modifiedCount} ads successfully` });
+} catch (error) {
+    console.error('Error approving ads:', error);
+    res.status(500).json({ message: 'Error approving ads', error: error.message });
+}};
+
+const rejectAll = async (req , res) =>{
+  try {
+    const updatedAds = await Ad.updateMany({ status: 'pending' }, { status: 'rejected' });
+
+    if (updatedAds.modifiedCount === 0) {
+        return res.status(404).json({ message: 'No pending ads found to reject' });
+    }
+
+    res.status(200).json({ message: `Rejected ${updatedAds.modifiedCount} ads successfully` });
+} catch (error) {
+    console.error('Error rejecting ads:', error);
+    res.status(500).json({ message: 'Error rejecting ads', error: error.message });
+}}
+
+
+module.exports = { createAd, getAllAds, getAdById, deleteAd , approveAd, refreshAd , getUserAds , deleteByAdmin , getAllAdsAdmin , getPendingPosts , approveAll , rejectAll};

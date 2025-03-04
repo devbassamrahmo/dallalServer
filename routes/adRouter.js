@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const { protect , isAdmin} = require("../middlewares/authMiddleware");
-const { createAd, getAllAds, getAdById, deleteAd , refreshAd , approveAd , getUserAds , deleteByAdmin , getAllAdsAdmin , getPendingPosts} = require("../controllers/adController");
+const { createAd, getAllAds, getAdById, deleteAd , refreshAd , approveAd , getUserAds , deleteByAdmin , getAllAdsAdmin , getPendingPosts , approveAll , rejectAll} = require("../controllers/adController");
 const upload = require("../middlewares/multer");
 
 // ✅ Public Routes
@@ -19,5 +19,8 @@ router.get('/find/get-pending' , protect , isAdmin , getPendingPosts);
 // ✅ Admin Routes
 router.put("/:id/approve", protect, isAdmin, approveAd);
 
+//approve and reject all
+router.put('/approve-all' , protect , isAdmin , approveAll)
+router.put('/reject-all' , protect , isAdmin , rejectAll)
 
 module.exports = router;
