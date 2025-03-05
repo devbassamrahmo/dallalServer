@@ -164,7 +164,7 @@ const getAllAds = async (req, res) => {
     const skip = (page - 1) * limit;
 
     // 🔥 Get Ads with Filters
-    const ads = await Ad.find(filter).skip(skip).limit(parseInt(limit).populate("user", "username email phoneNumber"));
+    const ads = await Ad.find(filter).skip(skip).limit(parseInt(limit)).populate("user", "username email");
 
     res.status(200).json({ total: ads.length, ads });
   } catch (error) {
