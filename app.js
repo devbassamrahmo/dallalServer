@@ -26,8 +26,8 @@ app.use('/user', userRouter);
 const adRouter = require('./routes/adRouter');
 app.use('/ad', adRouter);
 
-const imageRouter = require('./routes/imageRoutes');
-app.use('/img', imageRouter);
+const adminRouter = require('./routes/admin.js');
+app.use('/img', adminRouter);
 
 // MongoDB Connection
 mongoose.connect(process.env.DB_URL)

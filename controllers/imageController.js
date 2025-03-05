@@ -1,4 +1,4 @@
-const Image = require('../models/sponsImage');
+const Image = require('../models/Sponsor');
 const { cloudinary } = require('../config/cloudinary');
 
 exports.uploadImage = async (req, res) => {
