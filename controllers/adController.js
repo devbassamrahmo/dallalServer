@@ -237,7 +237,7 @@ const getAllAdsAdmin = async (req,res) =>{
 const getPendingPosts = async (req, res) =>{
   try {
     // ✅ Fetch ads where status is "pending"
-    const pendingAds = await Ad.find({ status: 'approved' });
+    const pendingAds = await Ad.find({ status: 'pending' });
 
     if (!pendingAds.length) {
         return res.status(404).json({ message: 'No pending ads found' });
