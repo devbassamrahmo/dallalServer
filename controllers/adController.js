@@ -164,7 +164,7 @@ const getAllAds = async (req, res) => {
     const skip = (page - 1) * limit;
 
     // 🔥 Get Ads with Filters
-    const ads = await Ad.find(filter).skip(skip).limit(parseInt(limit)).populate("user", "username email");
+    const ads = await Ad.find(filter).skip(skip).limit(parseInt(limit)).populate("user", "username email phoneNumber");
 
     res.status(200).json({ total: ads.length, ads });
   } catch (error) {
@@ -176,7 +176,7 @@ const getAllAds = async (req, res) => {
 // ✅ Get Ad by ID
 const getAdById = async (req, res) => {
   try {
-    const ad = await Ad.findById(req.params.id).populate("user", "username email");
+    const ad = await Ad.findById(req.params.id).populate("user", "username email phoneNumber");
     if (!ad) return res.status(404).json({ message: "Ad not found" });
 
     res.status(200).json(ad);
