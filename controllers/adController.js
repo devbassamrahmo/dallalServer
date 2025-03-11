@@ -52,7 +52,7 @@ const createAd = async (req, res) => {
       default:
         newAd = new GeneralAd({
           title, location, category, priceSYP, priceUSD, description, images: imageUrls, user: req.user.id,
-          condition
+          condition , adType : req.body.adType
         });
     }
 
