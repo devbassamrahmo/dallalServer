@@ -11,6 +11,8 @@ const userSchema = new mongoose.Schema({
   otp: { type: String },
   otpExpires: { type: Date },
   role: {type: String,enum: ['user', 'admin'],default: 'user'},
+  resetToken:{type: String},
+  resetTokenExpires: {type : Date},
 }, { timestamps: true });
 
 const User = mongoose.model("User", userSchema);

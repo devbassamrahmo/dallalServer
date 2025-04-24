@@ -4,6 +4,7 @@ const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
 require("dotenv").config();
 const nodemailer = require("nodemailer");
+const crypto = require("crypto");
 
 const saltRounds = 10;
 
@@ -303,6 +304,51 @@ const logout = async (req,res) =>{
     res.status(500).json({ message: "Server error", error: error.message });
 }
 }
+
+const sendResetLink = async (req, res) => {
+  const { email } = req.body;
+  try {
+    const user = await User.findOne({ email });
+    if (!user) return res.status(404).json({ message: "المستخدم غير موجود" });
+
+    const token = crypto.randomBytes(32).toString("hex");
+    user.resetToken = token;
+    user.resetTokenExpires = Date.now() + 60 * 60 * 1000; // صالح لمدة ساعة
+    await user.save();
+
+    const resetLink = `https://dallal.com/reset-password/${token}`;
+
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: email,
+      subject: "إعادة تعيين كلمة المرور",
+      html: `<p>اضغط على الرابط التالي لإعادة تعيين كلمة المرور:</p><a href="${resetLink}">${resetLink}</a>`
+    });
+
+    res.status(200).json({ message: "تم إرسال رابط إعادة التعيين إلى بريدك الإلكتروني" });
+  } catch (error) {
+    res.status(500).json({ message: "خطأ أثناء إرسال الرابط", error: error.message });
+  }
+};
+
+const resetPasswordWithToken = async (req, res) => {
+  const { token, newPassword } = req.body;
+  try {
+    const user = await User.findOne({ resetToken: token, resetTokenExpires: { $gt: Date.now() } });
+    if (!user) return res.status(400).json({ message: "الرابط غير صالح أو منتهي" });
+
+    const hashed = await bcrypt.hash(newPassword, saltRounds);
+    user.password = hashed;
+    user.resetToken = undefined;
+    user.resetTokenExpires = undefined;
+    await user.save();
+
+    res.status(200).json({ message: "تم تغيير كلمة المرور بنجاح" });
+  } catch (error) {
+    res.status(500).json({ message: "خطأ أثناء تغيير كلمة المرور", error: error.message });
+  }
+};
+
 module.exports = {
   registerUser,
   loginUser,
@@ -313,5 +359,8 @@ module.exports = {
   verifyOTP,
   resendOTP,
   getUserAds,
-  logout
+  logout,
+  sendResetLink,
+  resetPasswordWithToken
+
 };

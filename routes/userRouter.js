@@ -13,7 +13,10 @@ const {
   verifyOTP,
   resendOTP,
   getUserAds,
-  logout
+  logout,
+  sendResetLink,
+  resetPasswordWithToken,
+  
 } = require("../controllers/userController");
 router.use(cors());
 
@@ -25,7 +28,10 @@ router.get("/", protect, isAdmin , getAllUsers);
 router.get("/:id", getUserById);
 router.put("/:id", updateUser);
 router.delete("/:id", deleteUser);
-router.get('/user-ads/:userId',  protect , isAdmin, getUserAds)
+router.get('/user-ads/:userId',  protect , isAdmin, getUserAds);
+router.post("/send-reset-link", sendResetLink);
+router.post("/reset-password-link", resetPasswordWithToken);
+
 // router.post('/refresh-token' , refreshToken);
 router.post('/logout' , protect , logout);
 module.exports = router;
