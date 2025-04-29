@@ -29,7 +29,7 @@ app.use('/ad', adRouter);
 const adminRouter = require('./routes/admin.js');
 app.use('/img', adminRouter);
 
-const commentRoutes = require('./routes/comment.routes');
+const commentRoutes = require('./routes/commentRouter.js');
 app.use('/comments', commentRoutes);
 // MongoDB Connection
 mongoose.connect(process.env.DB_URL)
