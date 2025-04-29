@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-
+const Counter = require('./Counter');
 const adSchema = new mongoose.Schema(
   {
     title: { type: String, required: true },
@@ -15,10 +15,26 @@ const adSchema = new mongoose.Schema(
     description: { type: String, required: true },
     user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
     status: { type: String, enum: ["pending", "approved", "rejected"], default: "pending" },
-    expiresAt: { type: Date }, // تاريخ انتهاء الإعلان
+    expiresAt: { type: Date }, 
+    adNumber: { type: Number, unique: true },
   },
   { timestamps: true, discriminatorKey: "categoryType" }
 );
+
+adSchema.pre('save', async function (next) {
+  const ad = this;
+  
+  if (ad.isNew) {
+    const counter = await Counter.findOneAndUpdate(
+      { name: 'ad' },
+      { $inc: { seq: 1 } },
+      { new: true, upsert: true } 
+    );
+    ad.adNumber = counter.seq;
+  }
+  
+  next();
+});
 
 const Ad = mongoose.model("Ad", adSchema);
 module.exports = Ad;
