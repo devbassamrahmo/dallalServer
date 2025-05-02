@@ -15,6 +15,51 @@ const transporter = nodemailer.createTransport({
       pass: process.env.EMAIL_PASS
     }
   });
+  // const registerUser = async (req, res) => {
+  //   try {
+  //     const { firstname, lastname, username, email, password, phoneNumber } = req.body;
+  
+  //     const existingUser = await User.findOne({ email });
+  //     if (existingUser) return res.status(400).json({ message: "المستخدم مسجل مسبقًا" });
+  
+  //     const hashedPassword = await bcrypt.hash(password, saltRounds);
+  //     const otpCode = Math.floor(100000 + Math.random() * 900000); // Generate OTP
+  
+  //     // Set OTP expiration to 5 minutes from now (300000ms)
+  //     const otpExpires = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes expiry time
+  
+  //     const newUser = new User({
+  //       firstname, lastname, username, email, password: hashedPassword, phoneNumber,
+  //       otp: otpCode,
+  //       otpExpires: otpExpires // Set the OTP expiry time
+  //     });
+  
+  //     await newUser.save();
+  
+  //     // Send OTP via email
+  //     const mailOptions = {
+  //       from: process.env.EMAIL_USER,
+  //       to: email,
+  //       subject: "رمز التحقق OTP من دلال",
+  //       text: `كود التحقق الخاص بك هو: ${otpCode}`
+  //     };
+  //     await transporter.sendMail(mailOptions);
+  
+  //     // Set timeout to delete the user if OTP is not verified within 5 minutes
+  //     setTimeout(async () => {
+  //       const userInDb = await User.findOne({ email });
+  //       if (userInDb && !userInDb.isVerified && new Date() > userInDb.otpExpires) {
+  //         await User.deleteOne({ email }); // Delete user if OTP expired without verification
+  //         console.log("User deleted due to OTP expiration");
+  //       }
+  //     }, 5 * 60 * 1000); // 5 minutes timeout (300,000ms)
+  
+  //     res.status(201).json({ message: "تم تسجيل الحساب بنجاح، تحقق من بريدك الإلكتروني لإدخال كود OTP" });
+  //   } catch (error) {
+  //     res.status(500).json({ message: "خطأ أثناء التسجيل", error: error.message });
+  //   }
+  // };
+  
   const registerUser = async (req, res) => {
     try {
       const { firstname, lastname, username, email, password, phoneNumber } = req.body;
@@ -23,20 +68,24 @@ const transporter = nodemailer.createTransport({
       if (existingUser) return res.status(400).json({ message: "المستخدم مسجل مسبقًا" });
   
       const hashedPassword = await bcrypt.hash(password, saltRounds);
-      const otpCode = Math.floor(100000 + Math.random() * 900000); // Generate OTP
-  
-      // Set OTP expiration to 5 minutes from now (300000ms)
-      const otpExpires = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes expiry time
   
       const newUser = new User({
-        firstname, lastname, username, email, password: hashedPassword, phoneNumber,
-        otp: otpCode,
-        otpExpires: otpExpires // Set the OTP expiry time
+        firstname,
+        lastname,
+        username,
+        email,
+        password: hashedPassword,
+        phoneNumber,
+        isVerified: true 
+        // otp: otpCode,               
+        // otpExpires: otpExpires      
       });
   
       await newUser.save();
   
-      // Send OTP via email
+      /*
+      const otpCode = Math.floor(100000 + Math.random() * 900000);
+      const otpExpires = new Date(Date.now() + 5 * 60 * 1000);
       const mailOptions = {
         from: process.env.EMAIL_USER,
         to: email,
@@ -44,17 +93,19 @@ const transporter = nodemailer.createTransport({
         text: `كود التحقق الخاص بك هو: ${otpCode}`
       };
       await transporter.sendMail(mailOptions);
+      */
   
-      // Set timeout to delete the user if OTP is not verified within 5 minutes
+      /*
       setTimeout(async () => {
         const userInDb = await User.findOne({ email });
         if (userInDb && !userInDb.isVerified && new Date() > userInDb.otpExpires) {
-          await User.deleteOne({ email }); // Delete user if OTP expired without verification
+          await User.deleteOne({ email });
           console.log("User deleted due to OTP expiration");
         }
-      }, 5 * 60 * 1000); // 5 minutes timeout (300,000ms)
+      }, 5 * 60 * 1000);
+      */
   
-      res.status(201).json({ message: "تم تسجيل الحساب بنجاح، تحقق من بريدك الإلكتروني لإدخال كود OTP" });
+      res.status(201).json({ message: "تم تسجيل الحساب بنجاح" });
     } catch (error) {
       res.status(500).json({ message: "خطأ أثناء التسجيل", error: error.message });
     }
@@ -258,38 +309,6 @@ const getUserAds = async (req , res) =>{
 }
 }
 
-
-// const refreshToken = async (req, res) =>{
-//   const { refreshToken } = req.body;
-
-//   if (!refreshToken) {
-//       return res.status(401).json({ message: "Refresh token is required" });
-//   }
-
-//   try {
-//       // Verify the refresh token
-//       const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
-
-//       // Find the user in the database
-//       const user = await User.findById(decoded.id);
-//       if (!user || user.refreshToken !== refreshToken) {
-//           return res.status(403).json({ message: "Invalid refresh token" });
-//       }
-
-//       // Issue a new access token
-//       const accessToken = jwt.sign(
-//           { id: user._id, role: user.role },
-//           process.env.ACCESS_TOKEN_SECRET,
-//           { expiresIn: "15m" }
-//       );
-
-//       // Send the new access token to the client
-//       res.status(200).json({ accessToken });
-//   } catch (error) {
-//       console.error("Refresh token error:", error);
-//       res.status(403).json({ message: "Invalid or expired refresh token" });
-//   }
-// }
 
 
 const logout = async (req,res) =>{
