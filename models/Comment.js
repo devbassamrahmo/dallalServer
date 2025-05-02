@@ -1,3 +1,4 @@
+// models/Comment.js
 const mongoose = require('mongoose');
 
 const commentSchema = new mongoose.Schema({
@@ -15,6 +16,11 @@ const commentSchema = new mongoose.Schema({
     type: String, 
     required: true, 
     trim: true 
+  },
+  parentCommentId: { 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'Comment',
+    default: null 
   },
   createdAt: { 
     type: Date, 
