@@ -15,7 +15,7 @@ app.use(bodyParser.json());
 // CORS setup with credentials and specific origin
 app.use(
   cors({
-    origin: ["http://localhost:3000", "https://ecommerce3-ahmd.netlify.app", "https://dallal-vert.vercel.app", "https://dallal.sy"], // السماح بالموقع الحقيقي
+    origin: ["http://localhost:3000", "https://ecommerce3-ahmd.netlify.app", "https://dallal-vert.vercel.app", "https://dallal.sy" , "www.sy-dallal.com" , "e-commerce3-theta.vercel.app"], // السماح بالموقع الحقيقي
     credentials: true, // للسماح بالكوكيز إذا لزم الأمر
   })
 );
