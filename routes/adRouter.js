@@ -16,6 +16,7 @@ router.delete("/:id", protect, deleteAd);
 router.delete('/delete-ad/:adId', protect , isAdmin, deleteByAdmin);
 router.get('/find/alladsadmin', protect , isAdmin, getAllAdsAdmin);
 router.get('/find/get-pending' , protect , isAdmin , getPendingPosts);
+router.put("/:id", protect, upload.array("images", 5), updateAd);
 // ✅ Admin Routes
 router.put("/:id/approve", protect, isAdmin, approveAd);
 

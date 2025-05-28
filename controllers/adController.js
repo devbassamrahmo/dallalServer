@@ -280,5 +280,69 @@ const rejectAll = async (req , res) =>{
     res.status(500).json({ message: 'Error rejecting ads', error: error.message });
 }}
 
+const updateAd = async (req, res) => {
+  try {
+    const adId = req.params.id;
 
-module.exports = { createAd, getAllAds, getAdById, deleteAd , approveAd, refreshAd , getUserAds , deleteByAdmin , getAllAdsAdmin , getPendingPosts , approveAll , rejectAll};
+    const ad = await Ad.findById(adId);
+    if (!ad) {
+      return res.status(404).json({ message: "Ad not found" });
+    }
+
+    // ✅ تحقق من صلاحية التعديل (المالك أو أدمن)
+    if (ad.user.toString() !== req.user.id && req.user.role !== "admin") {
+      return res.status(403).json({ message: "Unauthorized to update this ad" });
+    }
+
+    // ✅ تحديث الحقول العامة
+    const updatableFields = ["title", "location", "priceSYP", "priceUSD", "description", "condition", "status"];
+    updatableFields.forEach(field => {
+      if (req.body[field] !== undefined) {
+        ad[field] = req.body[field];
+      }
+    });
+
+    // ✅ تحديث الصور إذا تم رفع صور جديدة
+    if (req.files && req.files.length > 0) {
+      // حذف الصور القديمة من Cloudinary
+      for (const imgUrl of ad.images) {
+        const publicId = imgUrl.split("/").pop().split(".")[0];
+        await cloudinary.uploader.destroy(`ads/${publicId}`);
+      }
+      // إضافة الصور الجديدة
+      const newImages = req.files.map((file) => file.path);
+      ad.images = newImages;
+    }
+
+    // ✅ تحديث الحقول الخاصة حسب الفئة
+    switch (ad.category) {
+      case "car":
+      case "bike":
+        ad.transmission = req.body.transmission || ad.transmission;
+        ad.vehicleType = req.body.vehicleType || ad.vehicleType;
+        ad.mileage = req.body.mileage || ad.mileage;
+        break;
+      case "real_estate":
+        ad.propertyType = req.body.propertyType || ad.propertyType;
+        ad.deedType = req.body.deedType || ad.deedType;
+        if (req.body.newHousingProject !== undefined) {
+          ad.newHousingProject = req.body.newHousingProject === "true";
+        }
+        break;
+      case "electronics":
+        ad.deviceType = req.body.deviceType || ad.deviceType;
+        break;
+      case "general":
+        ad.adType = req.body.adType || ad.adType;
+        break;
+    }
+
+    await ad.save();
+    res.status(200).json({ message: "Ad updated successfully", ad });
+  } catch (error) {
+    console.error("Error updating ad:", error);
+    res.status(500).json({ message: "Error updating ad", error: error.message });
+  }
+};
+
+module.exports = { createAd, getAllAds, getAdById, deleteAd , approveAd, refreshAd , getUserAds , deleteByAdmin , getAllAdsAdmin , getPendingPosts , approveAll , rejectAll , updateAd};

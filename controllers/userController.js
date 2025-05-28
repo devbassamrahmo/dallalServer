@@ -335,7 +335,7 @@ const sendResetLink = async (req, res) => {
     user.resetTokenExpires = Date.now() + 60 * 60 * 1000; // صالح لمدة ساعة
     await user.save();
 
-    const resetLink = `https://dallal.sy/reset-password/${token}`;
+    const resetLink = `https://sy-dallal.sy/reset-password/${token}`;
 
     await transporter.sendMail({
       from: process.env.EMAIL_USER,
