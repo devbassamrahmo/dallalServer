@@ -17,11 +17,11 @@ router.delete('/delete-ad/:adId', protect , isAdmin, deleteByAdmin);
 router.get('/find/alladsadmin', protect , isAdmin, getAllAdsAdmin);
 router.get('/find/get-pending' , protect , isAdmin , getPendingPosts);
 router.put("/:id", protect, upload.array("images", 5), updateAd);
-// ✅ Admin Routes
-router.put("/:id/approve", protect, isAdmin, approveAd);
 
 //approve and reject all
 router.put('/approve-all' , protect , isAdmin , approveAll)
 router.put('/reject-all' , protect , isAdmin , rejectAll)
+// ✅ Admin Routes
+router.put("/:id/approve", protect, isAdmin, approveAd);
 
 module.exports = router;
