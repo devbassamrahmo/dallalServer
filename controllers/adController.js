@@ -124,7 +124,7 @@ const refreshAd = async (req, res) => {
 // ✅ Get All Ads
 const getAllAds = async (req, res) => {
   try {
-    const { search, category, location, minPrice, maxPrice, condition, page = 1, limit = 100 } = req.query;
+    const { search, category, location, minPrice, maxPrice, condition, page = 1, limit = 1000 } = req.query;
     let filter = { status: "approved" }; // ✅ Show only approved ads
 
     // 🔍 Search by Title or Description
