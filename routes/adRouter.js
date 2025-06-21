@@ -18,10 +18,10 @@ router.get('/find/get-pending' , protect , isAdmin , getPendingPosts);
 router.put("/:id", protect, upload.array("images", 5), updateAd);
 
 //approve and reject all
-// ✅ Admin Routes
-router.put("/:id/approve", protect, isAdmin, approveAd);
 
 router.put('/approve-all' , protect , isAdmin , approveAll)
 router.put('/reject-all' , protect , isAdmin , rejectAll)
+// ✅ Admin Routes
+router.put("/:id/approve", protect, isAdmin, approveAd);
 
 module.exports = router;
