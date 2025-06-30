@@ -31,6 +31,9 @@ app.use('/img', adminRouter);
 
 const commentRoutes = require('./routes/commentRouter.js');
 app.use('/comments', commentRoutes);
+
+const exportsRoutes = require('./routes/export.js');
+app.use('/export', exportsRoutes);
 // MongoDB Connection
 mongoose.connect(process.env.DB_URL)
   .then(() => {
