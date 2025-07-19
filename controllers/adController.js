@@ -203,7 +203,7 @@ const getAllAds = async (req, res) => {
     if (condition) filter.condition = condition;
 
     const skip = (page - 1) * limit;
-    const ads = await Ad.find(filter).skip(skip).limit(parseInt(limit)).populate("user", "username email phoneNumber");
+    const ads = await Ad.find(filter).sort({ createdAt: -1 }).skip(skip).limit(parseInt(limit)).populate("user", "username email phoneNumber");
     const total = await Ad.countDocuments(filter);
 
     res.status(200).json({
