@@ -122,12 +122,62 @@ const refreshAd = async (req, res) => {
 };
 
 // ✅ Get All Ads
+// const getAllAds = async (req, res) => {
+//   try {
+//     const { search, category, location, minPrice, maxPrice, condition, page = 1, limit = 1000 } = req.query;
+//     let filter = { status: "approved" }; // ✅ Show only approved ads
+
+//     // 🔍 Search by Title or Description
+//     if (search) {
+//       filter.$or = [
+//         { title: { $regex: search, $options: "i" } },
+//         { description: { $regex: search, $options: "i" } }
+//       ];
+//     }
+
+//     // 🎯 Filter by Category
+//     if (category) filter.category = category;
+
+//     // 📍 Filter by Location
+//     if (location) filter.location = { $regex: location, $options: "i" };
+
+//     // 💰 Filter by Price Range
+//     if (minPrice || maxPrice) {
+//       filter.$or = [
+//         { priceSYP: {} },
+//         { priceUSD: {} }
+//       ];
+//       if (minPrice) {
+//         filter.$or[0].priceSYP.$gte = minPrice;
+//         filter.$or[1].priceUSD.$gte = minPrice;
+//       }
+//       if (maxPrice) {
+//         filter.$or[0].priceSYP.$lte = maxPrice;
+//         filter.$or[1].priceUSD.$lte = maxPrice;
+//       }
+//     }
+
+//     // ✅ Filter by Condition (new, used, furnished, etc.)
+//     if (condition) filter.condition = condition;
+
+//     // 📌 Pagination
+//     const skip = (page - 1) * limit;
+
+//     // 🔥 Get Ads with Filters
+//     const ads = await Ad.find(filter).skip(skip).limit(parseInt(limit)).populate("user", "username email phoneNumber");
+
+//     res.status(200).json({ total: ads.length, ads });
+//   } catch (error) {
+//     res.status(500).json({ message: "Error fetching ads", error: error.message });
+//   }
+// };
+
 const getAllAds = async (req, res) => {
   try {
-    const { search, category, location, minPrice, maxPrice, condition, page = 1, limit = 1000 } = req.query;
-    let filter = { status: "approved" }; // ✅ Show only approved ads
+    const { search, category, location, minPrice, maxPrice, condition, page = 1, limit = 20 } = req.query;
 
-    // 🔍 Search by Title or Description
+    let filter = { status: "approved" };
+
     if (search) {
       filter.$or = [
         { title: { $regex: search, $options: "i" } },
@@ -135,18 +185,11 @@ const getAllAds = async (req, res) => {
       ];
     }
 
-    // 🎯 Filter by Category
     if (category) filter.category = category;
-
-    // 📍 Filter by Location
     if (location) filter.location = { $regex: location, $options: "i" };
 
-    // 💰 Filter by Price Range
     if (minPrice || maxPrice) {
-      filter.$or = [
-        { priceSYP: {} },
-        { priceUSD: {} }
-      ];
+      filter.$or = [{ priceSYP: {} }, { priceUSD: {} }];
       if (minPrice) {
         filter.$or[0].priceSYP.$gte = minPrice;
         filter.$or[1].priceUSD.$gte = minPrice;
@@ -157,16 +200,18 @@ const getAllAds = async (req, res) => {
       }
     }
 
-    // ✅ Filter by Condition (new, used, furnished, etc.)
     if (condition) filter.condition = condition;
 
-    // 📌 Pagination
     const skip = (page - 1) * limit;
-
-    // 🔥 Get Ads with Filters
     const ads = await Ad.find(filter).skip(skip).limit(parseInt(limit)).populate("user", "username email phoneNumber");
+    const total = await Ad.countDocuments(filter);
 
-    res.status(200).json({ total: ads.length, ads });
+    res.status(200).json({
+      ads,
+      page: parseInt(page),
+      total,
+      hasMore: skip + ads.length < total
+    });
   } catch (error) {
     res.status(500).json({ message: "Error fetching ads", error: error.message });
   }
