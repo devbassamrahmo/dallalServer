@@ -7,11 +7,12 @@ const cloudinary = require("../config/cloudinary");
 const fs = require('fs');
 const path = require('path');
 const { createClient } = require('@supabase/supabase-js');
+require('dotenv').config();
 
 // إعداد Supabase
 const supabase = createClient(
-  'https://knhyreehsrzllzmhuaah.supabase.co',
-  'YOUR_ANON_PUBLIC_KEY'
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_KEY
 );
 
 
