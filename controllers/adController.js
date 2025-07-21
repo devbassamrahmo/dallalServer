@@ -4,7 +4,19 @@ const RealEstateAd = require("../models/RealEstateAd");
 const ElectronicsAd = require("../models/ElectronicsAd");
 const GeneralAd = require("../models/GeneralAd");
 const cloudinary = require("../config/cloudinary");
+const fs = require('fs');
+const path = require('path');
+const { createClient } = require('@supabase/supabase-js');
+
+// إعداد Supabase
+const supabase = createClient(
+  'https://knhyreehsrzllzmhuaah.supabase.co',
+  'YOUR_ANON_PUBLIC_KEY'
+);
+
+
 // ✅ Create an Ad Based on Category
+
 const createAd = async (req, res) => {
   try {
     const { title, location, category, priceSYP, priceUSD, description, condition } = req.body;
@@ -17,7 +29,30 @@ const createAd = async (req, res) => {
       return res.status(400).json({ message: "At least one image is required" });
     }
 
-    const imageUrls = req.files.map((file) => file.path);
+    const imageUrls = [];
+
+    for (const file of req.files) {
+      const buffer = fs.readFileSync(file.path);
+      const fileName = `${Date.now()}_${file.originalname}`;
+
+      const { error } = await supabase.storage
+        .from('ads')
+        .upload(`images/${fileName}`, buffer, {
+          contentType: file.mimetype,
+          upsert: true
+        });
+
+      // حذف الملف المؤقت من السيرفر
+      fs.unlinkSync(file.path);
+
+      if (error) {
+        console.error(`❌ Failed to upload ${file.originalname}:`, error.message);
+        return res.status(500).json({ message: `Error uploading image: ${file.originalname}` });
+      }
+
+      const publicUrl = `https://knhyreehsrzllzmhuaah.supabase.co/storage/v1/object/public/ads/images/${fileName}`;
+      imageUrls.push(publicUrl);
+    }
     let newAd;
 
     switch (category) {
