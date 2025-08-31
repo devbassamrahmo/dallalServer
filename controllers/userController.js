@@ -5,8 +5,11 @@ const bcrypt = require("bcrypt");
 require("dotenv").config();
 const nodemailer = require("nodemailer");
 const crypto = require("crypto");
+const twilio = require("twilio");
 
 const saltRounds = 10;
+const twilioClient = twilio(process.env.TWILIO_SID, process.env.TWILIO_AUTH_TOKEN);
+const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
 
 const transporter = nodemailer.createTransport({
     service: "gmail",
@@ -368,6 +371,105 @@ const resetPasswordWithToken = async (req, res) => {
   }
 };
 
+const loginOrRegisterWithPhone = async (req, res) => {
+  try {
+    const { phoneNumber, username } = req.body;
+
+    if (!phoneNumber) {
+      return res.status(400).json({ message: "رقم الهاتف مطلوب" });
+    }
+
+    // ✅ تنسيق رقم الهاتف (يُضاف رمز البلد تلقائيًا إذا غير موجود)
+    const formattedPhone = phoneNumber.startsWith("+")
+      ? phoneNumber
+      : `+963${phoneNumber.replace(/^0+/, "")}`; // يشيل الصفر من بداية الرقم إذا موجود
+
+    // ✅ بحث عن المستخدم
+    let user = await User.findOne({ phoneNumber: formattedPhone });
+
+    // ✅ توليد OTP ووقت انتهاء الصلاحية
+    const otpCode = Math.floor(100000 + Math.random() * 900000);
+    const otpExpires = new Date(Date.now() + 5 * 60 * 1000); // 5 دقائق
+
+    if (user) {
+      // ✅ مستخدم موجود - تحديث OTP
+      user.otp = otpCode;
+      user.otpExpires = otpExpires;
+      await user.save();
+    } else {
+      // ✅ مستخدم جديد - تأكد من وجود اسم مستخدم
+      if (!username) {
+        return res.status(200).json({
+          message: "المستخدم غير موجود. يرجى إدخال اسم مستخدم لإنشاء حساب جديد.",
+          requiresUsername: true
+        });
+      }
+
+      user = new User({
+        username,
+        phoneNumber: formattedPhone,
+        otp: otpCode,
+        otpExpires,
+        isVerified: false
+      });
+
+      await user.save();
+    }
+
+    // ✅ إرسال الرسالة عبر Twilio
+    await twilioClient.messages.create({
+      body: `رمز التحقق الخاص بك في دلال هو: ${otpCode}`,
+      from: twilioPhoneNumber,
+      to: formattedPhone
+    });
+
+    res.status(200).json({ message: "تم إرسال كود التحقق بنجاح", userId: user._id });
+  } catch (error) {
+    console.error("خطأ في loginOrRegisterWithPhone:", error);
+    res.status(500).json({ message: "حدث خطأ أثناء إرسال كود التحقق", error: error.message });
+  }
+};
+
+
+const verifyOTPByPhone = async (req, res) => {
+  try {
+    const { phoneNumber, otp } = req.body;
+
+    const user = await User.findOne({ phoneNumber });
+    if (!user) return res.status(404).json({ message: "المستخدم غير موجود" });
+
+    if (user.isVerified) return res.status(400).json({ message: "المستخدم مفعل بالفعل" });
+
+    if (user.otp !== otp) return res.status(400).json({ message: "رمز التحقق غير صحيح" });
+
+    if (new Date() > user.otpExpires) {
+      return res.status(400).json({ message: "انتهت صلاحية رمز التحقق" });
+    }
+
+    user.isVerified = true;
+    user.otp = null;
+    user.otpExpires = null;
+
+    // إنشاء توكن JWT بعد التحقق
+    const token = jwt.sign(
+      { id: user._id, username: user.username, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: "24h" }
+    );
+
+    await user.save();
+
+    const { password, ...userData } = user.toObject();
+
+    res.status(200).json({ message: "تم التحقق من الرقم وتسجيل الدخول", user: userData, token });
+  } catch (error) {
+    console.error("خطأ أثناء التحقق من OTP:", error);
+    res.status(500).json({ message: "خطأ أثناء التحقق", error: error.message });
+  }
+};
+
+
+
 module.exports = {
   registerUser,
   loginUser,
@@ -380,6 +482,8 @@ module.exports = {
   getUserAds,
   logout,
   sendResetLink,
-  resetPasswordWithToken
+  resetPasswordWithToken,
+  loginOrRegisterWithPhone,
+  verifyOTPByPhone
 
 };

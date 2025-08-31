@@ -16,6 +16,8 @@ const {
   logout,
   sendResetLink,
   resetPasswordWithToken,
+  loginOrRegisterWithPhone,
+  verifyOTPByPhone
   
 } = require("../controllers/userController");
 router.use(cors());
@@ -34,4 +36,9 @@ router.post("/reset-password-link", resetPasswordWithToken);
 
 // router.post('/refresh-token' , refreshToken);
 router.post('/logout' , protect , logout);
+
+
+router.post("/auth/phone", loginOrRegisterWithPhone); // تسجيل دخول أو إنشاء حساب برقم الهاتف
+router.post("/auth/verify-otp", verifyOTPByPhone); // التحقق من الـ OTP
+
 module.exports = router;
