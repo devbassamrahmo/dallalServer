@@ -374,6 +374,7 @@ const resetPasswordWithToken = async (req, res) => {
 const loginOrRegisterWithPhone = async (req, res) => {
   try {
     const { phoneNumber, username } = req.body;
+    console.log(req.body)
 
     if (!phoneNumber) {
       return res.status(400).json({ message: "رقم الهاتف مطلوب" });

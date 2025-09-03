@@ -4,7 +4,7 @@ const userSchema = new mongoose.Schema({
   firstname: { type: String }, // اختياري
   lastname: { type: String },  // اختياري
   username: { type: String, required: true, unique: true },
-  email: { type: String, unique: true }, // اختياري
+  // email: { type: String, unique: true, sparse: true , default: 'example@gmail.com' },
   password: { type: String }, // اختياري
   phoneNumber: { type: String, required: true, unique: true },
 

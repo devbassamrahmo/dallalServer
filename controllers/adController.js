@@ -276,11 +276,7 @@ const deleteAd = async (req, res) => {
       return res.status(403).json({ message: "Unauthorized to delete this ad" });
     }
 
-    // 🔥 Delete images from Cloudinary
-    for (const imgUrl of ad.images) {
-      const publicId = imgUrl.split("/").pop().split(".")[0];
-      await cloudinary.uploader.destroy(`ads/${publicId}`);
-    }
+   
 
     await ad.deleteOne();
     res.status(200).json({ message: "Ad deleted successfully" });
