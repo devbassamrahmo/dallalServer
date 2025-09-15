@@ -34,6 +34,9 @@ app.use('/comments', commentRoutes);
 
 const exportsRoutes = require('./routes/export.js');
 app.use('/export', exportsRoutes);
+
+const requresRoutes = require('./routes/requestRoutes.js');
+app.use('/requests', requresRoutes);
 // MongoDB Connection
 mongoose.connect(process.env.DB_URL)
   .then(() => {

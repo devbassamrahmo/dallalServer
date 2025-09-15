@@ -2,7 +2,10 @@ const express = require("express");
 const router = express.Router();
 const cors = require("cors");
 const { protect , isAdmin} = require("../middlewares/authMiddleware");
-  
+
+// const { protect , isAdmin} = require("../middleware/auth");
+
+
 const {
   registerUser,
   loginUser,
@@ -17,7 +20,10 @@ const {
   sendResetLink,
   resetPasswordWithToken,
   loginOrRegisterWithPhone,
-  verifyOTPByPhone
+  verifyOTPByPhone,
+  checkPhone,
+  registerWithPhone,
+  loginWithPhone,
   
 } = require("../controllers/userController");
 router.use(cors());
@@ -40,5 +46,14 @@ router.post('/logout' , protect , logout);
 
 router.post("/auth/phone", loginOrRegisterWithPhone); // تسجيل دخول أو إنشاء حساب برقم الهاتف
 router.post("/auth/verify-otp", verifyOTPByPhone); // التحقق من الـ OTP
+
+// 1) فحص الرقم
+router.post("/auth/check-phone", checkPhone);
+
+// 2) تسجيل حساب جديد (phone + username + pin 6)
+router.post("/auth/register-phone", registerWithPhone);
+
+// 3) تسجيل الدخول (phone + pin 6)
+router.post("/auth/login-phone", loginWithPhone);
 
 module.exports = router;

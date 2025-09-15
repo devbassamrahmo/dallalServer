@@ -469,6 +469,125 @@ const verifyOTPByPhone = async (req, res) => {
   }
 };
 
+const normalizePhone = (raw) => {
+  if (!raw) return raw;
+  const only = String(raw).replace(/\D/g, "");
+  if (String(raw).startsWith("+")) return raw;
+  // مثال: سوريا 09xxxxxxxx → +963xxxxxxxx
+  if (only.startsWith("09")) return `+963${only.slice(1)}`;
+  // مثال عام: إن كان الرقم بلا +
+  return `+${only}`;
+};
+
+/** 1) فحص رقم الهاتف فقط */
+const checkPhone = async (req, res) => {
+  try {
+    const { phoneNumber } = req.body;
+    if (!phoneNumber) return res.status(400).json({ message: "رقم الهاتف مطلوب" });
+
+    const formattedPhone = normalizePhone(phoneNumber);
+    const user = await User.findOne({ phoneNumber: formattedPhone });
+
+    if (user) {
+      return res.status(200).json({
+        status: "EXISTS",
+        requiresPassword: true,
+        message: "الرقم موجود. يرجى إدخال الرمز السري (6 أرقام)."
+      });
+    }
+
+    return res.status(200).json({
+      status: "NOT_FOUND",
+      requiresUsername: true,
+      requiresPassword: true,
+      message: "الرقم غير موجود. يرجى إدخال اسم مستخدم ورمز سري (6 أرقام) للتسجيل."
+    });
+  } catch (err) {
+    res.status(500).json({ message: "خطأ أثناء فحص الرقم", error: err.message });
+  }
+};
+
+/** 2) تسجيل مستخدم جديد: phone + username + pin(6) */
+const registerWithPhone = async (req, res) => {
+  try {
+    const { phoneNumber, username, password } = req.body;
+
+    if (!phoneNumber || !username || !password) {
+      return res.status(400).json({ message: "رقم الهاتف واسم المستخدم والرمز السري مطلوبة" });
+    }
+
+    if (!/^\d{6}$/.test(String(password))) {
+      return res.status(400).json({ message: "الرمز السري يجب أن يكون 6 أرقام" });
+    }
+
+    const formattedPhone = normalizePhone(phoneNumber);
+
+    const exists = await User.findOne({ phoneNumber: formattedPhone });
+    if (exists) {
+      return res.status(409).json({ message: "رقم الهاتف مسجل مسبقًا. استخدم تسجيل الدخول." });
+    }
+
+    const usernameTaken = await User.findOne({ username });
+    if (usernameTaken) {
+      return res.status(409).json({ message: "اسم المستخدم مستخدم مسبقًا" });
+    }
+
+    const hashed = await bcrypt.hash(String(password), saltRounds);
+
+    const user = await User.create({
+      username,
+      phoneNumber: formattedPhone,
+      password: hashed,
+      isVerified: true, // نعتبره مفعّل لأننا لا نستخدم OTP
+    });
+
+    const token = jwt.sign(
+      { id: user._id, username: user.username, phoneNumber: user.phoneNumber, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: "24h" }
+    );
+
+    const { password: _, ...userData } = user.toObject();
+    res.status(201).json({ message: "تم إنشاء الحساب وتسجيل الدخول", user: userData, token });
+  } catch (err) {
+    res.status(500).json({ message: "خطأ أثناء التسجيل عبر الهاتف", error: err.message });
+  }
+};
+
+/** 3) تسجيل الدخول: phone + pin(6) */
+const loginWithPhone = async (req, res) => {
+  try {
+    const { phoneNumber, password } = req.body;
+
+    if (!phoneNumber || !password) {
+      return res.status(400).json({ message: "رقم الهاتف والرمز السري مطلوبان" });
+    }
+
+    if (!/^\d{6}$/.test(String(password))) {
+      return res.status(400).json({ message: "الرمز السري يجب أن يكون 6 أرقام" });
+    }
+
+    const formattedPhone = normalizePhone(phoneNumber);
+    const user = await User.findOne({ phoneNumber: formattedPhone });
+    if (!user) return res.status(404).json({ message: "الرقم غير موجود. الرجاء التسجيل." });
+
+    if (!user.password) return res.status(400).json({ message: "لا يوجد رمز سري مسجّل لهذا الحساب" });
+
+    const ok = await bcrypt.compare(String(password), user.password);
+    if (!ok) return res.status(401).json({ message: "الرمز السري غير صحيح" });
+
+    const token = jwt.sign(
+      { id: user._id, username: user.username, phoneNumber: user.phoneNumber, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: "24h" }
+    );
+
+    const { password: _, ...userData } = user.toObject();
+    res.status(200).json({ message: "تم تسجيل الدخول", user: userData, token });
+  } catch (err) {
+    res.status(500).json({ message: "خطأ أثناء تسجيل الدخول عبر الهاتف", error: err.message });
+  }
+};
 
 
 module.exports = {
@@ -485,6 +604,9 @@ module.exports = {
   sendResetLink,
   resetPasswordWithToken,
   loginOrRegisterWithPhone,
-  verifyOTPByPhone
-
+  verifyOTPByPhone,
+  loginWithPhone,
+  registerWithPhone,
+  checkPhone
 };
+
