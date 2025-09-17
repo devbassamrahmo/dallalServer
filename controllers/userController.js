@@ -212,7 +212,7 @@ const checkPhone = async (req, res) => {
     if (!phoneNumber) return res.status(400).json({ message: "رقم الهاتف مطلوب" });
 
     const phoneDigits = normalizePhoneToDigits(phoneNumber);
-    const user = await User.findOne({ phoneNumber: phoneDigits });
+    const user = await User.findOne({ phoneNumber: phoneDigits }).select("_id pin6 username phoneNumber");
 
     if (!user) {
       return res.status(200).json({
@@ -223,7 +223,7 @@ const checkPhone = async (req, res) => {
       });
     }
 
-    if (!user.password) {
+    if (!user.pin6) {
       return res.status(200).json({
         status: "EXISTS_NEEDS_PIN",
         requiresPinSetup: true,
@@ -241,6 +241,7 @@ const checkPhone = async (req, res) => {
   }
 };
 
+
 /** B) ضبط PIN (لمستخدم موجود لا يملك PIN) + إصدار JWT */
 const setPinForPhone = async (req, res) => {
   try {
@@ -253,11 +254,11 @@ const setPinForPhone = async (req, res) => {
     }
 
     const phoneDigits = normalizePhoneToDigits(phoneNumber);
-    const user = await User.findOne({ phoneNumber: phoneDigits });
+    const user = await User.findOne({ phoneNumber: phoneDigits }).select("+pin6 username role phoneNumber");
     if (!user) return res.status(404).json({ message: "المستخدم غير موجود" });
-    if (user.password) return res.status(400).json({ message: "تم ضبط PIN مسبقًا لهذا الرقم" });
+    if (user.pin6) return res.status(400).json({ message: "تم ضبط PIN مسبقًا لهذا الرقم" });
 
-    user.password = await bcrypt.hash(String(pin6), saltRounds); // تخزين PIN بالـ password
+    user.pin6 = await bcrypt.hash(String(pin6), 10);
     user.isVerified = true;
     await user.save();
 
@@ -267,12 +268,15 @@ const setPinForPhone = async (req, res) => {
       { expiresIn: "24h" }
     );
 
-    const { password, ...userData } = user.toObject();
+    const userData = user.toObject();
+    delete userData.pin6;
+
     res.status(200).json({ message: "تم ضبط PIN وتسجيل الدخول", user: userData, token });
   } catch (err) {
     res.status(500).json({ message: "خطأ أثناء ضبط PIN", error: err.message });
   }
 };
+
 
 /** C) تسجيل مستخدم جديد (phone + username + pin6) + JWT */
 const registerWithPhone = async (req, res) => {
@@ -292,12 +296,12 @@ const registerWithPhone = async (req, res) => {
     const usernameTaken = await User.findOne({ username });
     if (usernameTaken) return res.status(409).json({ message: "اسم المستخدم مستخدم مسبقًا" });
 
-    const hashed = await bcrypt.hash(String(pin6), saltRounds);
+    const hashed = await bcrypt.hash(String(pin6), 10);
 
     const user = await User.create({
       username,
       phoneNumber: phoneDigits,
-      password: hashed, // نخزّن PIN
+      pin6: hashed,
       isVerified: true
     });
 
@@ -307,12 +311,15 @@ const registerWithPhone = async (req, res) => {
       { expiresIn: "24h" }
     );
 
-    const { password, ...userData } = user.toObject();
+    const userData = user.toObject();
+    delete userData.pin6;
+
     res.status(201).json({ message: "تم إنشاء الحساب وتسجيل الدخول", user: userData, token });
   } catch (err) {
     res.status(500).json({ message: "خطأ أثناء التسجيل عبر الهاتف", error: err.message });
   }
 };
+
 
 /** D) تسجيل الدخول (phone + pin6) + JWT */
 const loginWithPhone = async (req, res) => {
@@ -326,11 +333,12 @@ const loginWithPhone = async (req, res) => {
     }
 
     const phoneDigits = normalizePhoneToDigits(phoneNumber);
-    const user = await User.findOne({ phoneNumber: phoneDigits });
+    // لازم نجيب pin6 لأنو select:false
+    const user = await User.findOne({ phoneNumber: phoneDigits }).select("+pin6 username role phoneNumber");
     if (!user) return res.status(404).json({ message: "الرقم غير موجود. الرجاء التسجيل." });
-    if (!user.password) return res.status(400).json({ message: "لا يوجد PIN مضبوط لهذا الحساب" });
+    if (!user.pin6) return res.status(400).json({ message: "لا يوجد PIN مضبوط لهذا الحساب" });
 
-    const ok = await bcrypt.compare(String(pin6), user.password);
+    const ok = await bcrypt.compare(String(pin6), user.pin6);
     if (!ok) return res.status(401).json({ message: "PIN غير صحيح" });
 
     const token = jwt.sign(
@@ -339,7 +347,9 @@ const loginWithPhone = async (req, res) => {
       { expiresIn: "24h" }
     );
 
-    const { password, ...userData } = user.toObject();
+    const userData = user.toObject();
+    delete userData.pin6;
+
     res.status(200).json({ message: "تم تسجيل الدخول", user: userData, token });
   } catch (err) {
     res.status(500).json({ message: "خطأ أثناء تسجيل الدخول عبر الهاتف", error: err.message });

@@ -9,8 +9,8 @@ const userSchema = new mongoose.Schema({
   phoneNumber: { type: String, required: true, unique: true },
   
 
-  pin6Hash: { type: String, select: false }, // هاش للـ PIN 6 أرقام
-  
+  pin6: { type: String, select: false }, // هاش للـ PIN 6 أرقام
+
   isVerified: { type: Boolean, default: false },
   otp: { type: Number },
   otpExpires: { type: Date },
