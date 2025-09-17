@@ -7,10 +7,15 @@ const userSchema = new mongoose.Schema({
   // email: { type: String, unique: true, sparse: true , default: 'example@gmail.com' },
   password: { type: String }, // اختياري
   phoneNumber: { type: String, required: true, unique: true },
+  
 
+  pin6Hash: { type: String, select: false }, // هاش للـ PIN 6 أرقام
+  
   isVerified: { type: Boolean, default: false },
   otp: { type: Number },
   otpExpires: { type: Date },
+
+
 
   role: { type: String, enum: ['user', 'admin'], default: 'user' },
 

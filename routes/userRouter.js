@@ -1,59 +1,58 @@
 const express = require("express");
 const router = express.Router();
 const cors = require("cors");
-const { protect , isAdmin} = require("../middlewares/authMiddleware");
+router.use(cors());
 
-// const { protect , isAdmin} = require("../middleware/auth");
-
+const { protect, isAdmin } = require("../middlewares/authMiddleware");
 
 const {
+  // Email register/login
   registerUser,
   loginUser,
+  // verifyOTP,      // غير مستخدم حالياً
+  // resendOTP,      // غير مستخدم حالياً
+
+  // Users & misc
   getAllUsers,
   getUserById,
   updateUser,
   deleteUser,
-  verifyOTP,
-  resendOTP,
   getUserAds,
   logout,
   sendResetLink,
   resetPasswordWithToken,
-  loginOrRegisterWithPhone,
-  verifyOTPByPhone,
-  checkPhone,
-  registerWithPhone,
-  loginWithPhone,
-  
-} = require("../controllers/userController");
-router.use(cors());
 
+  // New phone flow (no OTP)
+  checkPhone,
+  setPinForPhone,
+  registerWithPhone,
+  loginWithPhone
+} = require("../controllers/userController");
+
+/* Email (اختياري) */
 router.post("/register", registerUser);
-router.post("/verify-otp", verifyOTP); 
-router.post("/resend-otp", resendOTP);  
 router.post("/login", loginUser);
-router.get("/", protect, isAdmin , getAllUsers);
-router.get("/:id", getUserById);
-router.put("/:id", updateUser);
-router.delete("/:id", deleteUser);
-router.get('/user-ads/:userId',  protect , isAdmin, getUserAds);
+// router.post("/verify-otp", verifyOTP);      // مؤجّل
+// router.post("/resend-otp", resendOTP);      // مؤجّل
+
+/* Reset password via email (إن رغبت) */
 router.post("/send-reset-link", sendResetLink);
 router.post("/reset-password-link", resetPasswordWithToken);
 
-// router.post('/refresh-token' , refreshToken);
-router.post('/logout' , protect , logout);
+/* التدفق الجديد للهاتف بدون OTP */
+router.post("/auth/check-phone", checkPhone);         // فحص الرقم وتحديد الحالة
+router.post("/auth/set-pin", setPinForPhone);         // ضبط PIN لمستخدم موجود بدون PIN
+router.post("/auth/register-phone", registerWithPhone); // مستخدم جديد: phone+username+PIN
+router.post("/auth/login-phone", loginWithPhone);     // دخول: phone+PIN
 
+/* Users Admin & Profile */
+router.get("/", protect, isAdmin, getAllUsers);
+router.get("/user-ads/:userId", protect, isAdmin, getUserAds);
+router.get("/:id", getUserById);
+router.put("/:id", updateUser);
+router.delete("/:id", deleteUser);
 
-router.post("/auth/phone", loginOrRegisterWithPhone); // تسجيل دخول أو إنشاء حساب برقم الهاتف
-router.post("/auth/verify-otp", verifyOTPByPhone); // التحقق من الـ OTP
-
-// 1) فحص الرقم
-router.post("/auth/check-phone", checkPhone);
-
-// 2) تسجيل حساب جديد (phone + username + pin 6)
-router.post("/auth/register-phone", registerWithPhone);
-
-// 3) تسجيل الدخول (phone + pin 6)
-router.post("/auth/login-phone", loginWithPhone);
+/* Logout (JWT) */
+router.post("/logout", protect, logout);
 
 module.exports = router;
