@@ -209,9 +209,11 @@ const resetPasswordWithToken = async (req, res) => {
 const checkPhone = async (req, res) => {
   try {
     const { phoneNumber } = req.body;
+    
     if (!phoneNumber) return res.status(400).json({ message: "رقم الهاتف مطلوب" });
 
     const phoneDigits = normalizePhoneToDigits(phoneNumber);
+    
     const user = await User.findOne({ phoneNumber: phoneDigits }).select("_id pin6 username phoneNumber");
 
     if (!user) {
