@@ -37,6 +37,12 @@ app.use('/export', exportsRoutes);
 
 const requresRoutes = require('./routes/requestRoutes.js');
 app.use('/requests', requresRoutes);
+
+const notificationsRoutes = require('./routes/notificationsRouter.js');
+app.use('/notifications', notificationsRoutes);
+
+const messagesRouter = require('./routes/messagesRouter.js');
+app.use('/messages', messagesRouter);
 // MongoDB Connection
 mongoose.connect(process.env.DB_URL)
   .then(() => {
