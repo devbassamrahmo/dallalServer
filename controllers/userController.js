@@ -403,9 +403,18 @@ const JWT_EXPIRES = "24h";
 
 // إعداد نودميلر (Gmail app password أفضل)
 const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
+  host: process.env.SMTP_HOST || "smtp.zoho.eu",
+  port: process.env.SMTP_PORT || 465,
+  secure: true, // SSL
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
+  }
 });
+// transporter.verify((error, success) => {
+//   if (error) console.log("❌ SMTP Connection Error:", error);
+//   else console.log("✅ SMTP Server ready to send emails as", process.env.EMAIL_USER);
+// });
 
 function signToken(user) {
   return jwt.sign(
@@ -481,11 +490,12 @@ const registerUser = async (req, res) => {
 
     // أرسل الإيميل (بالبساطة نرسل الـ OTP)
     await transporter.sendMail({
-      from: process.env.EMAIL_USER,
-      to: emailLC,
-      subject: "رمز التحقق - Dallal",
-      html: `<p>رمز التحقق لتفعيل حسابك: <b>${otp}</b></p><p>صالح لمدة 10 دقائق.</p>`
-    });
+  from: process.env.EMAIL_USER,                  // لازم يضل info@sy-dallal.com
+  to: emailLC,                                   // إيميل المستخدم
+  subject: "رمز التحقق - Dallal",
+  html: `<p>رمز التحقق لتفعيل حسابك: <b>${otp}</b></p><p>صالح لمدة 10 دقائق.</p>`,
+  replyTo: "support@sy-dallal.com"              // إن عندك بريد دعم
+});
 
     res.status(201).json({ message: "تم إنشاء الحساب. تحقق من بريدك الإلكتروني لإدخال OTP.", userId: newUser._id });
   } catch (err) {
