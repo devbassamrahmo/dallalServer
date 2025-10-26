@@ -89,7 +89,9 @@ const {
   sendPinResetLink,
   resetPinWithToken,
   requestSetPinOtp,
-  setPinWithOtp
+  setPinWithOtp,
+  sendPinResetCode,
+  confirmPinResetWithCode
 } = require("../controllers/userController");
 
 // ===== Register + Email OTP =====
@@ -116,5 +118,10 @@ router.post("/pin/reset", resetPinWithToken);
 router.post("/pin/request-set", requestSetPinOtp);     // body: { phoneNumber }
 router.post("/pin/set-with-otp", setPinWithOtp);       // body: { phoneNumber, pin6, otp }
 
+// طلب كود إعادة ضبط PIN
+router.post("/pin/reset/code/request", sendPinResetCode);
+
+// تأكيد الكود وتعيين PIN جديد
+router.post("/pin/reset/code/confirm", confirmPinResetWithCode);
 
 module.exports = router;
