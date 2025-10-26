@@ -440,9 +440,9 @@ const registerUser = async (req, res) => {
     }
 
     // إذا بدك تطلب كلمة مرور أو PIN على الأقل:
-    if (!password && !pin6) {
-      return res.status(400).json({ message: "زوّد password أو pin6 على الأقل." });
-    }
+    if (!pin6) return res.status(400).json({ message: "PIN6 مطلوب للتسجيل." });
+if (!/^\d{6}$/.test(String(pin6))) return res.status(400).json({ message: "PIN يجب أن يكون 6 أرقام." });
+newUser.pin6 = await bcrypt.hash(String(pin6), SALT_ROUNDS);
 
     const emailLC = String(email).toLowerCase().trim();
     const phoneDigits = normalizePhoneToDigits(phoneNumber);
@@ -580,34 +580,34 @@ const resendOtp = async (req, res) => {
 /* =====================
    4) Login with password (emailOrUsername + password)
    ===================== */
-const loginWithPassword = async (req, res) => {
-  try {
-    const { emailOrUsername, password } = req.body;
-    if (!emailOrUsername || !password) return res.status(400).json({ message: "emailOrUsername و password مطلوبين." });
+// const loginWithPassword = async (req, res) => {
+//   try {
+//     const { emailOrUsername, password } = req.body;
+//     if (!emailOrUsername || !password) return res.status(400).json({ message: "emailOrUsername و password مطلوبين." });
 
-    const query = emailOrUsername.includes("@")
-      ? { email: emailOrUsername.toLowerCase().trim() }
-      : { username: emailOrUsername.toLowerCase().trim() };
+//     const query = emailOrUsername.includes("@")
+//       ? { email: emailOrUsername.toLowerCase().trim() }
+//       : { username: emailOrUsername.toLowerCase().trim() };
 
-    const user = await User.findOne(query).select("+password +pin6"); // password موجود بالحقل password
-    if (!user) return res.status(401).json({ message: "بيانات الدخول غير صحيحة." });
+//     const user = await User.findOne(query).select("+password +pin6"); // password موجود بالحقل password
+//     if (!user) return res.status(401).json({ message: "بيانات الدخول غير صحيحة." });
 
-    if (!user.isVerified) return res.status(403).json({ message: "الحساب غير موثّق." });
+//     if (!user.isVerified) return res.status(403).json({ message: "الحساب غير موثّق." });
 
-    const ok = await bcrypt.compare(password, user.password);
-    if (!ok) return res.status(401).json({ message: "بيانات الدخول غير صحيحة." });
+//     const ok = await bcrypt.compare(password, user.password);
+//     if (!ok) return res.status(401).json({ message: "بيانات الدخول غير صحيحة." });
 
-    const token = signToken(user);
-    const userObj = user.toObject();
-    delete userObj.password;
-    delete userObj.pin6;
+//     const token = signToken(user);
+//     const userObj = user.toObject();
+//     delete userObj.password;
+//     delete userObj.pin6;
 
-    res.status(200).json({ message: "تم تسجيل الدخول.", user: userObj, token });
-  } catch (err) {
-    console.error("loginWithPassword error:", err);
-    res.status(500).json({ message: "خطأ أثناء تسجيل الدخول", error: err.message });
-  }
-};
+//     res.status(200).json({ message: "تم تسجيل الدخول.", user: userObj, token });
+//   } catch (err) {
+//     console.error("loginWithPassword error:", err);
+//     res.status(500).json({ message: "خطأ أثناء تسجيل الدخول", error: err.message });
+//   }
+// };
 
 /* =====================
    5) Login with PIN (phoneNumber + pin6)
@@ -615,30 +615,98 @@ const loginWithPassword = async (req, res) => {
 const loginWithPin = async (req, res) => {
   try {
     const { phoneNumber, pin6 } = req.body;
-    if (!phoneNumber || !pin6) return res.status(400).json({ message: "phoneNumber و pin6 مطلوبين." });
-    if (!/^\d{6}$/.test(String(pin6))) return res.status(400).json({ message: "PIN يجب أن يكون 6 أرقام." });
 
+    // تحقق من الإدخالات الأساسية
+    if (!phoneNumber || !pin6)
+      return res.status(400).json({ message: "رقم الهاتف و PIN مطلوبان." });
+
+    if (!/^\d{6}$/.test(String(pin6)))
+      return res.status(400).json({ message: "PIN يجب أن يكون 6 أرقام." });
+
+    // توحيد تنسيق الرقم (اختياري، حسب util عندك)
     const phoneDigits = normalizePhoneToDigits(phoneNumber);
-    const user = await User.findOne({ phoneNumber: phoneDigits }).select("+pin6 +password");
-    if (!user) return res.status(401).json({ message: "بيانات الدخول غير صحيحة." });
 
-    if (!user.isVerified) return res.status(403).json({ message: "الحساب غير موثّق." });
-    if (!user.pin6) return res.status(400).json({ message: "لم يتم ضبط PIN لهذا الحساب." });
+    // جلب المستخدم + pin6 لأن select:false
+    const user = await User.findOne({ phoneNumber: phoneDigits })
+      .select("+pin6 username role phoneNumber failedLoginAttempts lockedUntil");
 
-    const ok = await bcrypt.compare(String(pin6), user.pin6);
-    if (!ok) return res.status(401).json({ message: "بيانات الدخول غير صحيحة." });
+    if (!user)
+      return res.status(404).json({ message: "الرقم غير موجود. الرجاء التسجيل أولاً." });
 
-    const token = signToken(user);
-    const userObj = user.toObject();
-    delete userObj.password;
-    delete userObj.pin6;
+    if (!user.pin6)
+      return res.status(400).json({ message: "لا يوجد PIN مضبوط لهذا الحساب." });
 
-    res.status(200).json({ message: "تم تسجيل الدخول.", user: userObj, token });
+    // 🔒 فحص إذا الحساب مقفول مؤقتًا
+    if (user.lockedUntil && new Date() < user.lockedUntil) {
+      const remainingMin = Math.ceil((user.lockedUntil - Date.now()) / 60000);
+      return res
+        .status(423)
+        .json({ message: `الحساب مقفول مؤقتًا. حاول بعد ${remainingMin} دقيقة.` });
+    }
+
+    // 🧩 تحقق من الـ PIN
+    const isMatch = await bcrypt.compare(String(pin6), user.pin6);
+
+    if (!isMatch) {
+      // زِد عدّاد الفشل
+      user.failedLoginAttempts = (user.failedLoginAttempts || 0) + 1;
+
+      // لو فشل 5 مرات، اقفل الحساب 15 دقيقة
+      if (user.failedLoginAttempts >= 5) {
+        user.lockedUntil = new Date(Date.now() + 15 * 60 * 1000); // 15 دقيقة
+      }
+
+      await user.save();
+
+      const remaining = 5 - user.failedLoginAttempts;
+      if (remaining > 0) {
+        return res
+          .status(401)
+          .json({ message: `PIN غير صحيح. تبقى ${remaining} محاولات قبل القفل.` });
+      } else {
+        return res
+          .status(423)
+          .json({ message: "تم قفل الحساب مؤقتًا لمدة 15 دقيقة بسبب محاولات متكررة." });
+      }
+    }
+
+    // ✅ نجاح تسجيل الدخول
+    user.failedLoginAttempts = 0;
+    user.lockedUntil = undefined;
+    await user.save();
+
+    // توليد توكن JWT
+    const token = jwt.sign(
+      {
+        id: user._id,
+        username: user.username,
+        phoneNumber: user.phoneNumber,
+        role: user.role,
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: "24h" }
+    );
+
+    // تنظيف بيانات الإرجاع
+    const userData = user.toObject();
+    delete userData.pin6;
+    delete userData.failedLoginAttempts;
+    delete userData.lockedUntil;
+
+    return res.status(200).json({
+      message: "تم تسجيل الدخول بنجاح ✅",
+      user: userData,
+      token,
+    });
   } catch (err) {
     console.error("loginWithPin error:", err);
-    res.status(500).json({ message: "خطأ أثناء تسجيل الدخول بالـ PIN", error: err.message });
+    return res.status(500).json({
+      message: "حدث خطأ أثناء تسجيل الدخول.",
+      error: err.message,
+    });
   }
 };
+
 
 /* =====================
    6) Set PIN for existing user (phoneNumber + pin6) - used for flow where phone exists without pin
@@ -811,12 +879,170 @@ const checkPhone = async (req, res) => {
   }
 };
 
+const sendPinResetLink = async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ message: "email مطلوب." });
+
+    const user = await User.findOne({ email: String(email).toLowerCase().trim() });
+    // الرد محايد حتى لو الإيميل غير موجود
+    if (!user) return res.status(200).json({ message: "إن وُجد حساب سنرسل رابط إعادة ضبط PIN." });
+
+    const token = crypto.randomBytes(32).toString("hex");
+    user.resetToken = token;
+    user.resetTokenExpires = new Date(Date.now() + 60 * 60 * 1000); // صالح ساعة
+    await user.save();
+
+    const link = `${process.env.FRONTEND_BASE_URL || "https://sy-dallal.sy"}/reset-pin/${token}`;
+
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: user.email,
+      subject: "إعادة ضبط PIN - Dallal",
+      html: `<p>اضغط للرابط لضبط PIN جديد (صالح 60 دقيقة):</p>
+             <p><a href="${link}">${link}</a></p>`
+    });
+
+    res.status(200).json({ message: "إن وُجد حساب سنرسل رابط إعادة ضبط PIN." });
+  } catch (err) {
+    res.status(500).json({ message: "خطأ أثناء إرسال رابط ضبط PIN", error: err.message });
+  }
+};
+
+const resetPinWithToken = async (req, res) => {
+  try {
+    const { token, pin6 } = req.body;
+    if (!token || !pin6) return res.status(400).json({ message: "token و pin6 مطلوبان." });
+    if (!/^\d{6}$/.test(String(pin6))) return res.status(400).json({ message: "PIN يجب أن يكون 6 أرقام." });
+
+    const user = await User.findOne({ resetToken: token, resetTokenExpires: { $gt: new Date() } }).select("+pin6");
+    if (!user) return res.status(400).json({ message: "الرابط غير صالح أو منتهي." });
+
+    user.pin6 = await bcrypt.hash(String(pin6), SALT_ROUNDS);
+    user.resetToken = undefined;
+    user.resetTokenExpires = undefined;
+
+    // (لو كنت عامل 4-ب) صفّر القفل عند ضبط PIN
+    user.failedLoginAttempts = 0;
+    user.lockedUntil = undefined;
+
+    await user.save();
+
+    res.status(200).json({ message: "تم ضبط PIN بنجاح." });
+  } catch (err) {
+    res.status(500).json({ message: "خطأ أثناء ضبط PIN", error: err.message });
+  }
+};
+
+const requestSetPinOtp = async (req, res) => {
+  try {
+    const { phoneNumber } = req.body;
+    if (!phoneNumber) return res.status(400).json({ message: "رقم الهاتف مطلوب." });
+
+    const phoneDigits = normalizePhoneToDigits(phoneNumber);
+
+    // جلب المستخدم
+    const user = await User.findOne({ phoneNumber: phoneDigits }).select("+email otp otpExpires");
+    if (!user) return res.status(404).json({ message: "الرقم غير موجود. الرجاء التسجيل." });
+
+    // إذا اليوزر عنده بالفعل pin6 رجّع رسالة تبين أنه لازم يستعمل login
+    if (user.pin6) return res.status(400).json({ message: "تم ضبط PIN مسبقًا. استخدم تسجيل الدخول." });
+
+    // مولّد OTP جديد (6 أرقام)
+    const otp = Math.floor(100000 + Math.random() * 900000); // number
+    user.otp = otp;
+    user.otpExpires = new Date(Date.now() + 10 * 60 * 1000); // صالح 10 دقائق
+    await user.save();
+
+    // أرسل الإيميل (إذا الإيميل موجود)
+    if (!user.email) {
+      // لو ما فيه إيميل، لا نرسل ونطلب طريقة أخرى
+      return res.status(400).json({ message: "لا يوجد بريد إلكتروني مرتبط بالحساب. تواصل مع الدعم." });
+    }
+
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: user.email,
+      subject: "رمز التحقق لضبط PIN - Dallal",
+      html: `<p>رمز التحقق لضبط PIN الخاص بحسابك: <b>${otp}</b></p><p>صالح لمدة 10 دقائق.</p>`
+    });
+
+    return res.status(200).json({ message: "تم إرسال رمز التحقق إلى بريدك الإلكتروني." });
+  } catch (err) {
+    console.error("requestSetPinOtp error:", err);
+    return res.status(500).json({ message: "حدث خطأ أثناء إرسال رمز التحقق.", error: err.message });
+  }
+};
+
+// 2) ضبط PIN باستخدام OTP + إصدار JWT
+const setPinWithOtp = async (req, res) => {
+  try {
+    const { phoneNumber, pin6, otp } = req.body;
+    if (!phoneNumber || !pin6 || !otp) {
+      return res.status(400).json({ message: "phoneNumber و pin6 و otp مطلوبين." });
+    }
+    if (!/^\d{6}$/.test(String(pin6))) {
+      return res.status(400).json({ message: "PIN يجب أن يكون 6 أرقام." });
+    }
+
+    const phoneDigits = normalizePhoneToDigits(phoneNumber);
+    // جلب المستخدم مع الحقول اللازمة
+    const user = await User.findOne({ phoneNumber: phoneDigits }).select("+otp otpExpires pin6 email username role");
+    if (!user) return res.status(404).json({ message: "المستخدم غير موجود." });
+
+    // تأكد أن اليوزر فعلاً بدون pin (أو يمكن السماح بتغييره إن أردت)
+    if (user.pin6) return res.status(400).json({ message: "الـ PIN مضبوط مسبقًا. استخدم تسجيل الدخول." });
+
+    // تحقق من صلاحية OTP
+    if (!user.otp || !user.otpExpires || new Date() > new Date(user.otpExpires)) {
+      return res.status(400).json({ message: "رمز التحقق منتهي أو غير صالح. اطلب رمزًا جديدًا." });
+    }
+
+    if (Number(otp) !== Number(user.otp)) {
+      return res.status(400).json({ message: "رمز التحقق غير صحيح." });
+    }
+
+    // كل شيء تمام: ضبّط الـ PIN كهاش، فعّل الحساب، امسح الـ otp
+    user.pin6 = await bcrypt.hash(String(pin6), SALT_ROUNDS);
+    user.isVerified = true; // خيار: ضبط PIN يعني التحقق
+    user.otp = undefined;
+    user.otpExpires = undefined;
+
+    // لو تستخدم حقول القفل من 4-b: صفّرهم
+    user.failedLoginAttempts = 0;
+    user.lockedUntil = undefined;
+
+    await user.save();
+
+    // اصدر JWT
+    const token = jwt.sign(
+      { id: user._id, username: user.username, phoneNumber: user.phoneNumber, role: user.role, isVerified: user.isVerified },
+      process.env.JWT_SECRET,
+      { expiresIn: JWT_EXPIRES }
+    );
+
+    const userObj = user.toObject();
+    delete userObj.pin6;
+    delete userObj.otp;
+    delete userObj.otpExpires;
+    delete userObj.failedLoginAttempts;
+    delete userObj.lockedUntil;
+
+    return res.status(200).json({ message: "تم ضبط PIN وتسجيل الدخول.", user: userObj, token });
+  } catch (err) {
+    console.error("setPinWithOtp error:", err);
+    return res.status(500).json({ message: "حدث خطأ أثناء ضبط PIN.", error: err.message });
+  }
+};
+
+
+
 module.exports = {
   // Email flows
   registerUser,
   verifyOtp,
   resendOtp,
-  loginWithPassword,
+  // loginWithPassword,
   // Phone flows
   loginWithPin,
   registerWithPhone,
@@ -824,5 +1050,9 @@ module.exports = {
   checkPhone,
   // Reset password
   sendResetLink,
-  resetPasswordWithToken
+  resetPasswordWithToken,
+  sendPinResetLink,
+  resetPinWithToken,
+  setPinWithOtp,
+  requestSetPinOtp
 };

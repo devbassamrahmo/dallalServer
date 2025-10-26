@@ -75,7 +75,7 @@ const {
   registerUser,
   verifyOtp,
   resendOtp,
-  loginWithPassword,
+  // loginWithPassword,
 
   // Phone flows
   loginWithPin,
@@ -86,6 +86,10 @@ const {
   // Reset password
   sendResetLink,
   resetPasswordWithToken,
+  sendPinResetLink,
+  resetPinWithToken,
+  requestSetPinOtp,
+  setPinWithOtp
 } = require("../controllers/userController");
 
 // ===== Register + Email OTP =====
@@ -94,7 +98,7 @@ router.post("/verify-otp", verifyOtp);           // body: { email, code }
 router.post("/resend-otp", resendOtp);           // body: { email }
 
 // ===== Login (طريقتين) =====
-router.post("/login/password", loginWithPassword); // body: { emailOrUsername, password }
+// router.post("/login/password", loginWithPassword); // body: { emailOrUsername, password }
 router.post("/login/pin", loginWithPin);           // body: { phoneNumber, pin6 }
 
 // ===== Phone-based flows =====
@@ -105,5 +109,12 @@ router.post("/check-phone", checkPhone);           // body: { phoneNumber }
 // ===== Forgot/Reset Password =====
 router.post("/password/forgot", sendResetLink);       // body: { email }
 router.post("/password/reset", resetPasswordWithToken); // body: { token, newPassword }
+
+router.post("/pin/forgot", sendPinResetLink);
+router.post("/pin/reset", resetPinWithToken);
+
+router.post("/pin/request-set", requestSetPinOtp);     // body: { phoneNumber }
+router.post("/pin/set-with-otp", setPinWithOtp);       // body: { phoneNumber, pin6, otp }
+
 
 module.exports = router;

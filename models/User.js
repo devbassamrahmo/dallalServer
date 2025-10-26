@@ -59,11 +59,14 @@ const userSchema = new mongoose.Schema({
   // استعادة كلمة المرور عبر رابط
   resetToken:        { type: String },
   resetTokenExpires: { type: Date },
+  failedLoginAttempts: { type: Number, default: 0 },
+lockedUntil: { type: Date },
 }, { timestamps: true });
 
 // فهارس للتأكّد من التفرد
 userSchema.index({ email: 1 }, { unique: true, sparse: true });
 userSchema.index({ username: 1 }, { unique: true });
 userSchema.index({ phoneNumber: 1 }, { unique: true });
+
 
 module.exports = mongoose.model("User", userSchema);
