@@ -5,19 +5,17 @@ require("dotenv").config();
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 async function sendEmail(to, subject, html) {
-  try {
-    const data = await resend.emails.send({
-      from: process.env.RESEND_FROM,
-      to,
-      subject,
-      html,
-    });
-    console.log("✅ Email sent to", to, ":", data.id);
-    return data;
-  } catch (error) {
-    console.error("❌ Email send failed:", error);
-    throw new Error(error.message);
+  const from = process.env.RESEND_FROM;
+
+  const result = await resend.emails.send({ from, to, subject, html });
+
+  if (result?.error) {
+    console.error("❌ Resend error:", result.error);
+    throw new Error(result.error.message || "Email send failed");
   }
+
+  console.log("✅ Email sent to", to, ":", result?.data?.id);
+  return result.data;
 }
 
 module.exports = { sendEmail };
