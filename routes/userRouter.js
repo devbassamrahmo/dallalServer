@@ -91,8 +91,14 @@ const {
   requestSetPinOtp,
   setPinWithOtp,
   sendPinResetCode,
-  confirmPinResetWithCode
+  confirmPinResetWithCode,
+  getAllUsers,
+  getUserById,
+  updateUser,
+  deleteUser,
+  getUserAds,
 } = require("../controllers/userController");
+const { protect, isAdmin } = require("../middlewares/authMiddleware");
 
 // ===== Register + Email OTP =====
 router.post("/register", registerUser);          // body: { firstname?, lastname?, username, email, phoneNumber, password?, pin6? }
@@ -123,5 +129,12 @@ router.post("/pin/reset/code/request", sendPinResetCode);
 
 // تأكيد الكود وتعيين PIN جديد
 router.post("/pin/reset/code/confirm", confirmPinResetWithCode);
+
+/* Users Admin & Profile */
+router.get("/", protect, isAdmin, getAllUsers);
+router.get("/user-ads/:userId", protect, isAdmin, getUserAds);
+router.get("/:id", getUserById);
+router.put("/:id", updateUser);
+router.delete("/:id", deleteUser);
 
 module.exports = router;

@@ -648,6 +648,64 @@ const confirmPinResetWithCode = async (req, res) => {
   }
 };
 
+const getAllUsers = async (req, res) => {
+  try {
+    const users = await User.find();
+    res.status(200).json(users);
+  } catch (error) {
+    res.status(500).json({ message: "Error fetching users", error: error.message });
+  }
+};
+
+const getUserById = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    res.status(200).json(user);
+  } catch (error) {
+    res.status(500).json({ message: "Error fetching user", error: error.message });
+  }
+};
+
+const updateUser = async (req, res) => {
+  try {
+    const { firstname, lastname, username, email, phoneNumber } = req.body;
+    const phoneDigits = phoneNumber ? normalizePhoneToDigits(phoneNumber) : undefined;
+
+    const updatedUser = await User.findByIdAndUpdate(
+      req.params.id,
+      { firstname, lastname, username, email, phoneNumber: phoneDigits },
+      { new: true }
+    );
+
+    if (!updatedUser) return res.status(404).json({ message: "User not found" });
+    res.status(200).json({ message: "User updated successfully", user: updatedUser });
+  } catch (error) {
+    res.status(500).json({ message: "Error updating user", error: error.message });
+  }
+};
+
+const deleteUser = async (req, res) => {
+  try {
+    const deletedUser = await User.findByIdAndDelete(req.params.id);
+    if (!deletedUser) return res.status(404).json({ message: "User not found" });
+    res.status(200).json({ message: "User deleted successfully", user: deletedUser });
+  } catch (error) {
+    res.status(500).json({ message: "Error deleting user", error: error.message });
+  }
+};
+
+const getUserAds = async (req, res) => {
+  try {
+    const userId = req.params.userId;
+    const ads = await Ad.find({ user: userId });
+    if (!ads.length) return res.status(404).json({ message: "No ads found for this user" });
+    res.status(200).json(ads);
+  } catch (error) {
+    console.error("Error fetching user ads:", error);
+    res.status(500).json({ message: "Error fetching ads", error: error.message });
+  }
+};
 
 module.exports = {
   // Email flows
@@ -673,5 +731,10 @@ module.exports = {
   setPinWithOtp,
   requestSetPinOtp,
   confirmPinResetWithCode,
-  sendPinResetCode
+  sendPinResetCode,
+  getAllUsers,
+  getUserById,
+  updateUser,
+  deleteUser,
+  getUserAds,
 };
