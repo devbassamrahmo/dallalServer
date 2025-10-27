@@ -97,6 +97,7 @@ const {
   updateUser,
   deleteUser,
   getUserAds,
+  adminSearchUser
 } = require("../controllers/userController");
 const { protect, isAdmin } = require("../middlewares/authMiddleware");
 
