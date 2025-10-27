@@ -43,6 +43,9 @@ app.use('/notifications', notificationsRoutes);
 
 const messagesRouter = require('./routes/messagesRouter.js');
 app.use('/messages', messagesRouter);
+
+const publicRouter = require('./routes/publicRouter.js');
+app.use('/public', publicRouter);
 // MongoDB Connection
 mongoose.connect(process.env.DB_URL)
   .then(() => {

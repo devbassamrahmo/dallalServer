@@ -137,4 +137,6 @@ router.get("/:id", getUserById);
 router.put("/:id", updateUser);
 router.delete("/:id", deleteUser);
 
+router.get("/admin/users/search", protect, isAdmin, adminSearchUser);
+
 module.exports = router;

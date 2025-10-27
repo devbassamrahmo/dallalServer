@@ -707,6 +707,42 @@ const getUserAds = async (req, res) => {
   }
 };
 
+const adminSearchUser = async (req, res) => {
+  try {
+    const { q } = req.query;
+    if (!q || !String(q).trim()) {
+      return res.status(400).json({ message: "يرجى تمرير قيمة البحث في query ?q=" });
+    }
+
+    const raw = String(q).trim();
+
+    // جرّب كإيميل
+    const emailLC = raw.toLowerCase();
+    let user = null;
+
+    if (emailLC.includes("@")) {
+      user = await User.findOne({ email: emailLC });
+    }
+
+    // إذا ما طلع إيميل، جرّب رقم موبايل (نطبّع للأرقام فقط)
+    if (!user) {
+      const phoneDigits = normalizePhoneToDigits(raw);
+      if (phoneDigits) {
+        user = await User.findOne({ phoneNumber: phoneDigits });
+      }
+    }
+
+    if (!user) {
+      return res.status(404).json({ message: "لم يتم العثور على مستخدم بهذا الإيميل أو الرقم." });
+    }
+
+    return res.status(200).json({ user: sanitizeUser(user) });
+  } catch (err) {
+    console.error("adminSearchUser error:", err);
+    return res.status(500).json({ message: "خطأ أثناء البحث", error: err.message });
+  }
+};
+
 module.exports = {
   // Email flows
   registerUser,
@@ -737,4 +773,5 @@ module.exports = {
   updateUser,
   deleteUser,
   getUserAds,
+  adminSearchUser
 };
