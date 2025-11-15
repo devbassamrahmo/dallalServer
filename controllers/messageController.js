@@ -1,151 +1,103 @@
 const Conversation = require("../models/Conversation");
 const Message = require("../models/Message");
-const Notification = require("../models/Notification");
+const { createNotification } = require("../controllers/notificationController");
 
-function ensureUnreadBucket(conv, userId) {
-  const idx = conv.unreadCounts.findIndex(u => String(u.user) === String(userId));
-  if (idx === -1) conv.unreadCounts.push({ user: userId, count: 0 });
-  return conv.unreadCounts.find(u => String(u.user) === String(userId));
-}
-
-exports.getOrCreateConversation = async (req, res) => {
+// إرسال رسالة
+const sendMessage = async (req, res) => {
   try {
-    const me = req.user.id;
-    const { withUserId } = req.body;
-    if (!withUserId) return res.status(400).json({ message: "withUserId مطلوب." });
+    const fromId = req.user.id;
+    const { to, body, adId } = req.body;
 
-    let conv = await Conversation.findOne({ participants: { $all: [me, withUserId], $size: 2 } });
-    if (!conv) {
-      conv = await Conversation.create({
-        participants: [me, withUserId],
-        lastMessageAt: new Date(0),
-        unreadCounts: [{ user: me, count: 0 }, { user: withUserId, count: 0 }]
-      });
+    if (!to || !body) {
+      return res.status(400).json({ message: "to و body مطلوبان." });
     }
-    res.json(conv);
-  } catch (e) {
-    res.status(500).json({ message: "خطأ", error: e.message });
-  }
-};
 
-exports.sendMessage = async (req, res) => {
-  try {
-    const me = req.user.id;
-    const { conversationId, toUserId, body, attachments = [] } = req.body;
+    if (String(to) === String(fromId)) {
+      return res.status(400).json({ message: "لا يمكنك إرسال رسالة لنفسك." });
+    }
 
-    let conv = conversationId
-      ? await Conversation.findById(conversationId)
-      : await Conversation.findOne({ participants: { $all: [me, toUserId], $size: 2 } });
+    let convo = await Conversation.findOne({
+      participants: { $all: [fromId, to] },
+      ...(adId ? { ad: adId } : {}),
+    });
 
-    if (!conv && !toUserId) return res.status(400).json({ message: "conversationId أو toUserId مطلوب." });
-    if (!conv) {
-      conv = await Conversation.create({
-        participants: [me, toUserId],
-        lastMessageAt: new Date()
+    if (!convo) {
+      convo = await Conversation.create({
+        participants: [fromId, to],
+        ad: adId || undefined,
       });
     }
 
-    // تحقق أني مشارك بالمحادثة
-    if (!conv.participants.map(String).includes(String(me))) {
-      return res.status(403).json({ message: "ليست محادثتك." });
-    }
-
-    const others = conv.participants.filter(u => String(u) !== String(me));
     const msg = await Message.create({
-      conversation: conv._id,
-      sender: me,
-      to: others,
+      conversation: convo._id,
+      from: fromId,
+      to,
       body,
-      attachments
     });
 
-    // حدث آخر رسالة وعدّادات غير مقروء
-    conv.lastMessageAt = msg.createdAt;
-    conv.lastMessage   = body ? body.slice(0, 200) : (attachments.length ? "[Attachment]" : "");
-    // زدّ عداد غير مقروء للمستلمين
-    others.forEach((uid) => {
-      const bucket = ensureUnreadBucket(conv, uid);
-      bucket.count = (bucket.count || 0) + 1;
-    });
-    await conv.save();
+    convo.lastMessage = body;
+    convo.lastSender = fromId;
+    convo.lastAt = new Date();
+    await convo.save();
 
-    // أنشئ إشعار لكل مستلم
-    await Promise.all(others.map(uid => Notification.create({
-      user: uid,
+    // نوتيفيكشن للمستلم
+    await createNotification({
+      userId: to,
       type: "MESSAGE",
       title: "رسالة جديدة",
-      body: body ? body.slice(0, 120) : "لديك رسالة جديدة",
-      data: { conversationId: conv._id, messageId: msg._id, from: me }
-    })));
-
-    // بث سوكِت (إن مستخدم Socket.IO)
-    req.io?.to(String(others[0])).emit("message:new", { conversationId: conv._id, message: msg });
-
-    res.status(201).json({ conversation: conv, message: msg });
-  } catch (e) {
-    res.status(500).json({ message: "خطأ بالإرسال", error: e.message });
-  }
-};
-
-exports.myConversations = async (req, res) => {
-  try {
-    const me = req.user.id;
-    const list = await Conversation.find({ participants: me })
-      .sort({ lastMessageAt: -1 })
-      .limit(50);
-    // ضيف unreadCount لي
-    const items = list.map(c => {
-      const mine = c.unreadCounts?.find(u => String(u.user) === String(me));
-      return { ...c.toObject(), myUnread: mine ? mine.count : 0 };
+      body: body.slice(0, 80),
+      data: { conversationId: convo._id, from: fromId },
     });
-    res.json(items);
+
+    return res.status(201).json({ message: msg, conversation: convo });
   } catch (e) {
-    res.status(500).json({ message: "خطأ", error: e.message });
+    console.error("sendMessage error:", e);
+    return res.status(500).json({ message: "خطأ أثناء إرسال الرسالة", error: e.message });
   }
 };
 
-exports.getMessages = async (req, res) => {
+const listMyConversations = async (req, res) => {
   try {
-    const me = req.user.id;
-    const { id } = req.params; // conversationId
-    const { before, limit = 30 } = req.query;
+    const userId = req.user.id;
 
-    const conv = await Conversation.findById(id);
-    if (!conv || !conv.participants.map(String).includes(String(me))) {
-      return res.status(404).json({ message: "المحادثة غير موجودة." });
-    }
+    const convos = await Conversation.find({ participants: userId })
+      .sort({ lastAt: -1 })
+      .populate("participants", "username email phoneNumber isSellerVerified")
+      .populate("ad", "title priceSYP priceUSD");
 
-    const q = { conversation: id };
-    if (before) q.createdAt = { $lt: new Date(before) };
-
-    const msgs = await Message.find(q).sort({ createdAt: -1 }).limit(Number(limit));
-    res.json({ items: msgs.reverse() });
+    return res.json({ items: convos });
   } catch (e) {
-    res.status(500).json({ message: "خطأ", error: e.message });
+    console.error("listMyConversations error:", e);
+    return res.status(500).json({ message: "خطأ أثناء جلب المحادثات", error: e.message });
   }
 };
 
-exports.markConversationRead = async (req, res) => {
+const getConversationMessages = async (req, res) => {
   try {
-    const me = req.user.id;
-    const { id } = req.params; // conversationId
-    const conv = await Conversation.findById(id);
-    if (!conv || !conv.participants.map(String).includes(String(me))) {
-      return res.status(404).json({ message: "غير موجود." });
-    }
-    // صفر عدّادي
-    const mine = conv.unreadCounts?.find(u => String(u.user) === String(me));
-    if (mine) mine.count = 0;
-    await conv.save();
+    const userId = req.user.id;
+    const { id } = req.params;
 
-    // عيّن الرسائل كمقروءة لهذا المستخدم
+    const convo = await Conversation.findById(id);
+    if (!convo || !convo.participants.map(String).includes(String(userId))) {
+      return res.status(404).json({ message: "محادثة غير موجودة أو لا تملك صلاحية الوصول." });
+    }
+
+    const messages = await Message.find({ conversation: id }).sort({ createdAt: 1 });
+
     await Message.updateMany(
-      { conversation: id, to: me, "readBy.user": { $ne: me } },
-      { $push: { readBy: { user: me, at: new Date() } } }
+      { conversation: id, to: userId, isRead: false },
+      { isRead: true }
     );
 
-    res.json({ ok: true });
+    return res.json({ items: messages });
   } catch (e) {
-    res.status(500).json({ message: "خطأ", error: e.message });
+    console.error("getConversationMessages error:", e);
+    return res.status(500).json({ message: "خطأ أثناء جلب الرسائل", error: e.message });
   }
+};
+
+module.exports = {
+  sendMessage,
+  listMyConversations,
+  getConversationMessages,
 };

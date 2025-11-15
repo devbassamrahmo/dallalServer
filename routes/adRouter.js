@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const { protect , isAdmin} = require("../middlewares/authMiddleware");
-const { createAd, getAllAds, getAdById, deleteAd , refreshAd , approveAd , getUserAds , deleteByAdmin , getAllAdsAdmin , getPendingPosts , approveAll , rejectAll , updateAd} = require("../controllers/adController");
+const { createAd, getAllAds, getAdById, deleteAd , refreshAd , approveAd , getUserAds , deleteByAdmin , getAllAdsAdmin , getPendingPosts , approveAll , rejectAll , updateAd , featureAd , unfeatureAd} = require("../controllers/adController");
 const upload = require("../middlewares/multer");
 
 router.put('/approve-all' , protect , isAdmin , approveAll)
@@ -23,5 +23,10 @@ router.put("/:id", protect, upload.array("images", 5), updateAd);
 //approve and reject all
 // ✅ Admin Routes
 router.put("/:id/approve", protect, isAdmin, approveAd);
+
+//featured
+
+router.put("/:id/feature", protect, isAdmin, featureAd);
+router.put("/:id/unfeature", protect, isAdmin, unfeatureAd);
 
 module.exports = router;

@@ -4,8 +4,9 @@ const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
 const crypto = require("crypto");
 const { normalizePhoneToDigits } = require("../utils/phone");
+const Ad = require("../models/Ad");
 const { sendEmail } = require("../utils/email"); // ✅ Resend wrapper (CommonJS)
-// const { sanitizeUser } = require("../utils/sanitizeUser");    // مثال
+const { sanitizeUser } = require("../utils/sanitizeUser");    // مثال
 require("dotenv").config();
 
 const SALT_ROUNDS = 10;
@@ -717,24 +718,18 @@ const adminSearchUser = async (req, res) => {
     const raw = String(q).trim();
     let user = null;
 
-    // 1) لو فيه @ نعتبره إيميل
     if (raw.includes("@")) {
       const emailLC = raw.toLowerCase();
       user = await User.findOne({ email: emailLC });
     }
 
-    // 2) لو مو إيميل أو ما لقينا، جرّبه رقم موبايل
     if (!user) {
-      // نفس regex تبع login لو حاب:
-      // if (/^\+?\d[\d\s\-()]+$/.test(raw)) {
       const phoneDigits = normalizePhoneToDigits(raw);
       if (phoneDigits) {
         user = await User.findOne({ phoneNumber: phoneDigits });
       }
-      // }
     }
 
-    // 3) لو لسا ما لقينا، جرّبه username
     if (!user) {
       const usernameLC = raw.toLowerCase();
       user = await User.findOne({ username: usernameLC });
@@ -750,6 +745,7 @@ const adminSearchUser = async (req, res) => {
     return res.status(500).json({ message: "خطأ أثناء البحث", error: err.message });
   }
 };
+
 
 
 const register = async (req, res) => {

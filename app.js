@@ -46,8 +46,8 @@ app.use('/requests', requresRoutes);
 const notificationsRoutes = require('./routes/notificationsRouter.js');
 app.use('/notifications', notificationsRoutes);
 
-const messagesRouter = require('./routes/messagesRouter.js');
-app.use('/messages', messagesRouter);
+const messageRoutes = require("./routes/messageRouter.js");
+app.use("/messages", messageRoutes);
 
 const publicRouter = require('./routes/publicRouter.js');
 app.use('/public', publicRouter);

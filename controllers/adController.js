@@ -4,6 +4,7 @@ const RealEstateAd = require("../models/RealEstateAd");
 const ElectronicsAd = require("../models/ElectronicsAd");
 const GeneralAd = require("../models/GeneralAd");
 const cloudinary = require("../config/cloudinary");
+const User = require("../models/User"); 
 const fs = require('fs');
 const path = require('path');
 const { createClient } = require('@supabase/supabase-js');
@@ -37,13 +38,12 @@ const createAd = async (req, res) => {
       const fileName = `${Date.now()}_${file.originalname}`;
 
       const { error } = await supabase.storage
-        .from('ads')
+        .from("ads")
         .upload(`images/${fileName}`, buffer, {
           contentType: file.mimetype,
-          upsert: true
+          upsert: true,
         });
 
-      // حذف الملف المؤقت من السيرفر
       fs.unlinkSync(file.path);
 
       if (error) {
@@ -54,50 +54,112 @@ const createAd = async (req, res) => {
       const publicUrl = `https://knhyreehsrzllzmhuaah.supabase.co/storage/v1/object/public/ads/images/${fileName}`;
       imageUrls.push(publicUrl);
     }
+
     let newAd;
 
     switch (category) {
       case "car":
         newAd = new CarAd({
-          title, location, category, priceSYP, priceUSD, description, images: imageUrls, user: req.user.id,
-          condition, transmission: req.body.transmission || "", vehicleType: req.body.vehicleType || "", mileage: req.body.mileage || 0
+          title,
+          location,
+          category,
+          priceSYP,
+          priceUSD,
+          description,
+          images: imageUrls,
+          user: req.user.id,
+          condition,
+          transmission: req.body.transmission || "",
+          vehicleType: req.body.vehicleType || "",
+          mileage: req.body.mileage || 0,
         });
         break;
 
       case "bike":
         newAd = new BikeAd({
-          title, location, category, priceSYP, priceUSD, description, images: imageUrls, user: req.user.id,
-          condition, transmission: req.body.transmission || "", vehicleType: req.body.vehicleType || "", mileage: req.body.mileage || 0
+          title,
+          location,
+          category,
+          priceSYP,
+          priceUSD,
+          description,
+          images: imageUrls,
+          user: req.user.id,
+          condition,
+          transmission: req.body.transmission || "",
+          vehicleType: req.body.vehicleType || "",
+          mileage: req.body.mileage || 0,
         });
         break;
 
       case "real_estate":
         newAd = new RealEstateAd({
-          title, location, category, priceSYP, priceUSD, description, images: imageUrls, user: req.user.id,
-          condition, propertyType: req.body.propertyType || "", deedType: req.body.deedType || "", newHousingProject: req.body.newHousingProject === "true"
+          title,
+          location,
+          category,
+          priceSYP,
+          priceUSD,
+          description,
+          images: imageUrls,
+          user: req.user.id,
+          condition,
+          propertyType: req.body.propertyType || "",
+          deedType: req.body.deedType || "",
+          newHousingProject: req.body.newHousingProject === "true",
         });
         break;
 
       case "electronics":
         newAd = new ElectronicsAd({
-          title, location, category, priceSYP, priceUSD, description, images: imageUrls, user: req.user.id,
-          condition, deviceType: req.body.deviceType || ""
+          title,
+          location,
+          category,
+          priceSYP,
+          priceUSD,
+          description,
+          images: imageUrls,
+          user: req.user.id,
+          condition,
+          deviceType: req.body.deviceType || "",
         });
         break;
 
       default:
         newAd = new GeneralAd({
-          title, location, category, priceSYP, priceUSD, description, images: imageUrls, user: req.user.id,
-          condition , adType : req.body.adType
+          title,
+          location,
+          category,
+          priceSYP,
+          priceUSD,
+          description,
+          images: imageUrls,
+          user: req.user.id,
+          condition,
+          adType: req.body.adType,
         });
     }
 
     await newAd.save();
+
+    // ⭐ بعد إنشاء الإعلان: عدّاد الإعلانات + توثيق البائع لو وصل 10
+    const user = await User.findById(req.user.id);
+    if (user) {
+      user.adsCount = (user.adsCount || 0) + 1;
+
+      if (!user.isSellerVerified && user.adsCount >= 10) {
+        user.isSellerVerified = true;
+      }
+
+      await user.save();
+    }
+
     res.status(201).json({ message: "Ad submitted for approval", ad: newAd });
   } catch (error) {
+    console.error("Error creating ad:", error);
     res.status(500).json({ message: "Error creating ad", error: error.message });
   }
 };
+
 
 const getUserAds = async (req, res) => {
   try {
@@ -212,12 +274,19 @@ const getAllAds = async (req, res) => {
   try {
     const { search, category, location, minPrice, maxPrice, condition, page = 1, limit = 20 } = req.query;
 
+    const now = new Date();
+    // تنظيف كسول: أي إعلان مميز وانتهت مدته يرجع عادي
+    await Ad.updateMany(
+      { isFeatured: true, featuredUntil: { $lte: now } },
+      { isFeatured: false, featuredUntil: null }
+    );
+
     let filter = { status: "approved" };
 
     if (search) {
       filter.$or = [
         { title: { $regex: search, $options: "i" } },
-        { description: { $regex: search, $options: "i" } }
+        { description: { $regex: search, $options: "i" } },
       ];
     }
 
@@ -239,19 +308,27 @@ const getAllAds = async (req, res) => {
     if (condition) filter.condition = condition;
 
     const skip = (page - 1) * limit;
-    const ads = await Ad.find(filter).sort({ createdAt: -1 }).skip(skip).limit(parseInt(limit)).populate("user", "username email phoneNumber");
+
+    const ads = await Ad.find(filter)
+      .sort({ isFeatured: -1, featuredUntil: -1, createdAt: -1 }) // ⭐ المميز فوق
+      .skip(skip)
+      .limit(parseInt(limit))
+      .populate("user", "username email phoneNumber isSellerVerified");
+
     const total = await Ad.countDocuments(filter);
 
     res.status(200).json({
       ads,
       page: parseInt(page),
       total,
-      hasMore: skip + ads.length < total
+      hasMore: skip + ads.length < total,
     });
   } catch (error) {
+    console.error("Error fetching ads:", error);
     res.status(500).json({ message: "Error fetching ads", error: error.message });
   }
 };
+
 
 
 // ✅ Get Ad by ID
@@ -279,6 +356,11 @@ const deleteAd = async (req, res) => {
    
 
     await ad.deleteOne();
+    const owner = await User.findById(ad.user);
+  if (owner) {
+    owner.adsCount = Math.max(0, (owner.adsCount || 0) - 1);
+    await owner.save();
+  }
     res.status(200).json({ message: "Ad deleted successfully" });
   } catch (error) {
     res.status(500).json({ message: "Error deleting ad", error: error.message });
@@ -291,9 +373,15 @@ const deleteByAdmin = async (req , res) =>{
 
     // ✅ Find and delete ad
     const deletedAd = await Ad.findByIdAndDelete(adId);
+    const owner = await User.findById(ad.user);
+  if (owner) {
+    owner.adsCount = Math.max(0, (owner.adsCount || 0) - 1);
+    await owner.save();
+  }
     if (!deletedAd) {
         return res.status(404).json({ message: 'Ad not found' });
     }
+    
 
     res.status(200).json({ message: 'Ad deleted successfully', deletedAd });
 } catch (error) {
@@ -422,4 +510,58 @@ const updateAd = async (req, res) => {
   }
 };
 
-module.exports = { createAd, getAllAds, getAdById, deleteAd , approveAd, refreshAd , getUserAds , deleteByAdmin , getAllAdsAdmin , getPendingPosts , approveAll , rejectAll , updateAd};
+const featureAd = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { days = 1 } = req.body; // افتراضي يوم
+
+    if (!req.user || req.user.role !== "admin") {
+      return res.status(403).json({ message: "Access denied. Admins only." });
+    }
+
+    const ad = await Ad.findById(id);
+    if (!ad) return res.status(404).json({ message: "Ad not found" });
+
+    const now = new Date();
+    const until = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
+
+    ad.isFeatured = true;
+    ad.featuredUntil = until;
+    ad.featuredBy = req.user.id;
+    await ad.save();
+
+    res.status(200).json({
+      message: `Ad featured until ${until.toISOString()}`,
+      ad,
+    });
+  } catch (error) {
+    console.error("Error featuring ad:", error);
+    res.status(500).json({ message: "Error featuring ad", error: error.message });
+  }
+};
+
+const unfeatureAd = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!req.user || req.user.role !== "admin") {
+      return res.status(403).json({ message: "Access denied. Admins only." });
+    }
+
+    const ad = await Ad.findByIdAndUpdate(
+      id,
+      { isFeatured: false, featuredUntil: null },
+      { new: true }
+    );
+
+    if (!ad) return res.status(404).json({ message: "Ad not found" });
+
+    res.status(200).json({ message: "Ad unfeatured successfully", ad });
+  } catch (error) {
+    console.error("Error unfeaturing ad:", error);
+    res.status(500).json({ message: "Error unfeaturing ad", error: error.message });
+  }
+};
+
+
+module.exports = { createAd, getAllAds, getAdById, deleteAd , approveAd, refreshAd , getUserAds , deleteByAdmin , getAllAdsAdmin , getPendingPosts , approveAll , rejectAll , updateAd , featureAd , unfeatureAd};

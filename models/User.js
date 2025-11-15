@@ -1,32 +1,3 @@
-// const mongoose = require("mongoose");
-
-// const userSchema = new mongoose.Schema({
-//   firstname: { type: String }, // اختياري
-//   lastname: { type: String },  // اختياري
-//   username: { type: String, required: true, unique: true },
-//   email: { type: String, unique: true, sparse: true},
-//   password: { type: String }, // اختياري
-//   phoneNumber: { type: String, required: true, unique: true },
-  
-
-//   pin6: { type: String, select: false }, // هاش للـ PIN 6 أرقام
-
-//   isVerified: { type: Boolean, default: false },
-//   otp: { type: Number },
-//   otpExpires: { type: Date },
-
-
-
-//   role: { type: String, enum: ['user', 'admin'], default: 'user' },
-
-//   resetToken: { type: String },
-//   resetTokenExpires: { type: Date },
-// }, { timestamps: true });
-
-// const User = mongoose.model("User", userSchema);
-// module.exports = User;
-
-
 // models/User.js
 const mongoose = require("mongoose");
 
@@ -50,8 +21,8 @@ const userSchema = new mongoose.Schema({
 
   // توثيق الإيميل عبر OTP
   isVerified:  { type: Boolean, default: false },
-  otp:         { type: Number },                  // كود OTP كـ رقم (كما طلبت)
-  otpExpires:  { type: Date },                    // وقت انتهاء الـ OTP
+  otp:         { type: Number },
+  otpExpires:  { type: Date },
 
   // الصلاحيات
   role:        { type: String, enum: ["user", "admin"], default: "user" },
@@ -59,14 +30,19 @@ const userSchema = new mongoose.Schema({
   // استعادة كلمة المرور عبر رابط
   resetToken:        { type: String },
   resetTokenExpires: { type: Date },
+
   failedLoginAttempts: { type: Number, default: 0 },
-lockedUntil: { type: Date },
+  lockedUntil:         { type: Date },
+
+  // ⭐ جديد: عدد الإعلانات + توثيق البائع
+  adsCount:        { type: Number, default: 0 },
+  isSellerVerified:{ type: Boolean, default: false },
 }, { timestamps: true });
 
-// فهارس للتأكّد من التفرد
+// فهارس
 userSchema.index({ email: 1 }, { unique: true, sparse: true });
 userSchema.index({ username: 1 }, { unique: true });
 userSchema.index({ phoneNumber: 1 }, { unique: true });
-
+userSchema.index({ isSellerVerified: 1 });
 
 module.exports = mongoose.model("User", userSchema);
