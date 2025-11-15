@@ -5,7 +5,7 @@ const bcrypt = require("bcrypt");
 const crypto = require("crypto");
 const { normalizePhoneToDigits } = require("../utils/phone");
 const { sendEmail } = require("../utils/email"); // ✅ Resend wrapper (CommonJS)
-
+// const { sanitizeUser } = require("../utils/sanitizeUser");    // مثال
 require("dotenv").config();
 
 const SALT_ROUNDS = 10;
@@ -715,25 +715,33 @@ const adminSearchUser = async (req, res) => {
     }
 
     const raw = String(q).trim();
-
-    // جرّب كإيميل
-    const emailLC = raw.toLowerCase();
     let user = null;
 
-    if (emailLC.includes("@")) {
+    // 1) لو فيه @ نعتبره إيميل
+    if (raw.includes("@")) {
+      const emailLC = raw.toLowerCase();
       user = await User.findOne({ email: emailLC });
     }
 
-    // إذا ما طلع إيميل، جرّب رقم موبايل (نطبّع للأرقام فقط)
+    // 2) لو مو إيميل أو ما لقينا، جرّبه رقم موبايل
     if (!user) {
+      // نفس regex تبع login لو حاب:
+      // if (/^\+?\d[\d\s\-()]+$/.test(raw)) {
       const phoneDigits = normalizePhoneToDigits(raw);
       if (phoneDigits) {
         user = await User.findOne({ phoneNumber: phoneDigits });
       }
+      // }
+    }
+
+    // 3) لو لسا ما لقينا، جرّبه username
+    if (!user) {
+      const usernameLC = raw.toLowerCase();
+      user = await User.findOne({ username: usernameLC });
     }
 
     if (!user) {
-      return res.status(404).json({ message: "لم يتم العثور على مستخدم بهذا الإيميل أو الرقم." });
+      return res.status(404).json({ message: "لم يتم العثور على مستخدم بهذا الإيميل أو الرقم أو اسم المستخدم." });
     }
 
     return res.status(200).json({ user: sanitizeUser(user) });
@@ -742,6 +750,278 @@ const adminSearchUser = async (req, res) => {
     return res.status(500).json({ message: "خطأ أثناء البحث", error: err.message });
   }
 };
+
+
+const register = async (req, res) => {
+  try {
+    const { firstname, lastname, username, email, phoneNumber, password } = req.body;
+
+    // التحقق من الحقول
+    if (!username || !email || !phoneNumber || !password) {
+      return res.status(400).json({ message: "جميع الحقول مطلوبة: username, email, phoneNumber, password." });
+    }
+
+    if (String(password).length < 8) {
+      return res.status(400).json({ message: "كلمة المرور يجب أن تكون 8 أحرف على الأقل." });
+    }
+
+    const usernameLC = String(username).trim().toLowerCase();
+    const emailLC = String(email).trim().toLowerCase();
+    const phoneDigits = normalizePhoneToDigits(phoneNumber);
+
+    // التأكد من التفرد
+    if (await User.findOne({ username: usernameLC })) {
+      return res.status(409).json({ message: "اسم المستخدم محجوز." });
+    }
+    if (await User.findOne({ email: emailLC })) {
+      return res.status(409).json({ message: "البريد الإلكتروني مستخدم مسبقًا." });
+    }
+    if (await User.findOne({ phoneNumber: phoneDigits })) {
+      return res.status(409).json({ message: "رقم الهاتف مستخدم مسبقًا." });
+    }
+
+    // تشفير كلمة السر
+    const hashedPassword = await bcrypt.hash(String(password), SALT_ROUNDS);
+
+    // إنشاء كود تفعيل
+    const otp = Math.floor(100000 + Math.random() * 900000);
+
+    // إنشاء المستخدم
+    const user = await User.create({
+      firstname,
+      lastname,
+      username: usernameLC,
+      email: emailLC,
+      phoneNumber: phoneDigits,
+      password: hashedPassword,
+      isVerified: false,
+      otp,
+      otpExpires: new Date(Date.now() + 10 * 60 * 1000), // 10 دقائق
+    });
+
+    // إرسال بريد التفعيل
+    await sendEmail(
+      emailLC,
+      "تفعيل حسابك - Dallal",
+      `
+        <p>مرحبًا ${usernameLC},</p>
+        <p>لتفعيل حسابك الرجاء إدخال رمز التفعيل التالي:</p>
+        <h2 style="letter-spacing:4px;">${otp}</h2>
+        <p>الرمز صالح لمدة 10 دقائق.</p>
+      `
+    );
+
+    return res.status(201).json({
+      message: "تم إنشاء الحساب. الرجاء التحقق من بريدك الإلكتروني لإدخال رمز التفعيل.",
+    });
+
+  } catch (err) {
+    console.error("register error:", err);
+    return res.status(500).json({ message: "خطأ أثناء إنشاء الحساب", error: err.message });
+  }
+};
+
+const login = async (req, res) => {
+  try {
+    const { email, phoneNumber, username, identifier, password } = req.body;
+    if (!password) {
+      return res.status(400).json({ message: "password مطلوب." });
+    }
+
+    // حدد المعرّف
+    let query = null;
+
+    if (email) {
+      query = { email: String(email).trim().toLowerCase() };
+    } else if (phoneNumber) {
+      query = { phoneNumber: normalizePhoneToDigits(phoneNumber) };
+    } else if (username) {
+      query = { username: String(username).trim().toLowerCase() };
+    } else if (identifier) {
+      const raw = String(identifier).trim();
+      if (raw.includes("@")) {
+        query = { email: raw.toLowerCase() };
+      } else if (/^\+?\d[\d\s\-()]+$/.test(raw)) {
+        query = { phoneNumber: normalizePhoneToDigits(raw) };
+      } else {
+        query = { username: raw.toLowerCase() };
+      }
+    } else {
+      return res.status(400).json({ message: "يرجى تمرير email أو phoneNumber أو username أو identifier." });
+    }
+
+    // جلب مع كلمة المرور والحقول الأمنية
+    const user = await User.findOne(query).select("+password failedLoginAttempts lockedUntil role username email phoneNumber");
+    if (!user) {
+      return res.status(404).json({ message: "المستخدم غير موجود." });
+    }
+
+    // فحص القفل المؤقت
+    if (user.lockedUntil && new Date() < user.lockedUntil) {
+      const remainingMin = Math.ceil((user.lockedUntil - Date.now()) / 60000);
+      return res.status(423).json({ message: `الحساب مقفول مؤقتًا. حاول بعد ${remainingMin} دقيقة.` });
+    }
+
+    const ok = user.password ? await bcrypt.compare(String(password), user.password) : false;
+
+    if (!ok) {
+      user.failedLoginAttempts = (user.failedLoginAttempts || 0) + 1;
+      if (user.failedLoginAttempts >= 5) {
+        user.lockedUntil = new Date(Date.now() + 15 * 60 * 1000); // 15 دقيقة
+      }
+      await user.save();
+
+      const remaining = Math.max(0, 5 - user.failedLoginAttempts);
+      if (remaining > 0) {
+        return res.status(401).json({ message: `كلمة المرور غير صحيحة. تبقى ${remaining} محاولات قبل القفل.` });
+      }
+      return res.status(423).json({ message: "تم قفل الحساب مؤقتًا لمدة 15 دقيقة بسبب محاولات متكررة." });
+    }
+
+    // نجاح
+    user.failedLoginAttempts = 0;
+    user.lockedUntil = undefined;
+    await user.save();
+
+    const token = signToken(user);
+    return res.status(200).json({ message: "تم تسجيل الدخول بنجاح ✅", user: sanitizeUser(user), token });
+  } catch (err) {
+    console.error("login error:", err);
+    return res.status(500).json({ message: "حدث خطأ أثناء تسجيل الدخول.", error: err.message });
+  }
+};
+const sendPasswordResetCode = async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ message: "email مطلوب." });
+
+    const emailLC = String(email).trim().toLowerCase();
+    const user = await User.findOne({ email: emailLC });
+
+    // رد محايد لأسباب أمنية
+    if (!user) {
+      return res.status(200).json({ message: "إن وُجد حساب سنرسل كود إعادة التعيين." });
+    }
+
+    const code = generate6Digit();
+    user.otp = code;
+    user.otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 دقائق
+    await user.save();
+
+    await sendEmail(
+      user.email,
+      "رمز إعادة تعيين كلمة المرور - Dallal",
+      `<p>رمز إعادة تعيين كلمة المرور هو: <b style="letter-spacing:4px;">${code}</b></p>
+       <p>صالح لمدة 10 دقائق.</p>`
+    );
+
+    return res.status(200).json({ message: "إن وُجد حساب سنرسل كود إعادة التعيين." });
+  } catch (err) {
+    console.error("sendPasswordResetCode error:", err);
+    return res.status(500).json({ message: "خطأ أثناء إرسال كود إعادة التعيين.", error: err.message });
+  }
+};
+const confirmPasswordReset = async (req, res) => {
+  try {
+    const { email, code, newPassword } = req.body;
+    if (!email || !code || !newPassword) {
+      return res.status(400).json({ message: "email و code و newPassword مطلوبة." });
+    }
+    if (String(newPassword).length < 8) {
+      return res.status(400).json({ message: "كلمة المرور يجب أن تكون 8 أحرف على الأقل." });
+    }
+
+    const emailLC = String(email).trim().toLowerCase();
+    const user = await User.findOne({ email: emailLC }).select("+password otp otpExpires failedLoginAttempts lockedUntil");
+    if (!user || !user.otp || !user.otpExpires) {
+      return res.status(400).json({ message: "الرمز غير صالح أو غير مُصدَر." });
+    }
+
+    if (new Date() > new Date(user.otpExpires)) {
+      return res.status(400).json({ message: "انتهت صلاحية الرمز. اطلب رمزًا جديدًا." });
+    }
+
+    if (Number(code) !== Number(user.otp)) {
+      return res.status(400).json({ message: "رمز غير صحيح." });
+    }
+
+    user.password = await bcrypt.hash(String(newPassword), SALT_ROUNDS);
+    user.otp = undefined;
+    user.otpExpires = undefined;
+    user.failedLoginAttempts = 0;
+    user.lockedUntil = undefined;
+    await user.save();
+
+    return res.status(200).json({ message: "تم تغيير كلمة المرور بنجاح." });
+  } catch (err) {
+    console.error("confirmPasswordReset error:", err);
+    return res.status(500).json({ message: "خطأ أثناء تغيير كلمة المرور.", error: err.message });
+  }
+};
+const verifyEmail = async (req, res) => {
+  try {
+    const { email, code } = req.body;
+    if (!email || !code) return res.status(400).json({ message: "email و code مطلوبين." });
+
+    const emailLC = String(email).trim().toLowerCase();
+    const user = await User.findOne({ email: emailLC }).select("otp otpExpires isVerified");
+
+    if (!user) return res.status(404).json({ message: "المستخدم غير موجود." });
+    if (user.isVerified) return res.status(400).json({ message: "الحساب مفعل مسبقاً." });
+
+    if (!user.otp || !user.otpExpires || new Date() > user.otpExpires) {
+      return res.status(400).json({ message: "رمز التفعيل منتهي أو غير صالح." });
+    }
+
+    if (Number(code) !== Number(user.otp)) {
+      return res.status(400).json({ message: "رمز التفعيل غير صحيح." });
+    }
+
+    user.isVerified = true;
+    user.otp = undefined;
+    user.otpExpires = undefined;
+    await user.save();
+
+    const token = signToken(user);
+    return res.status(200).json({ message: "تم تفعيل الحساب ✅", user: sanitizeUser(user), token });
+  } catch (err) {
+    console.error("verifyEmail error:", err);
+    return res.status(500).json({ message: "خطأ أثناء تفعيل الحساب", error: err.message });
+  }
+};
+
+const resendVerificationCode = async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ message: "email مطلوب." });
+
+    const emailLC = String(email).trim().toLowerCase();
+    const user = await User.findOne({ email: emailLC });
+
+    if (!user) return res.status(404).json({ message: "المستخدم غير موجود." });
+    if (user.isVerified) return res.status(400).json({ message: "الحساب مفعل مسبقاً." });
+
+    const otp = Math.floor(100000 + Math.random() * 900000);
+    user.otp = otp;
+    user.otpExpires = new Date(Date.now() + 10 * 60 * 1000);
+    await user.save();
+
+    await sendEmail(
+      user.email,
+      "رمز التفعيل الجديد",
+      `<p>رمز التفعيل الجديد هو:</p><h2>${otp}</h2>`
+    );
+
+    return res.status(200).json({ message: "تم إرسال رمز تفعيل جديد إلى بريدك." });
+  } catch (err) {
+    console.error("resendVerificationCode error:", err);
+    return res.status(500).json({ message: "خطأ أثناء إعادة إرسال الرمز", error: err.message });
+  }
+};
+
+
+
+
 
 module.exports = {
   // Email flows
@@ -773,5 +1053,13 @@ module.exports = {
   updateUser,
   deleteUser,
   getUserAds,
-  adminSearchUser
+  adminSearchUser,
+  register,
+  login,
+  sendPasswordResetCode,
+  confirmPasswordReset,
+  verifyEmail,
+  resendVerificationCode
+  
+  
 };

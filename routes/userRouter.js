@@ -97,12 +97,19 @@ const {
   updateUser,
   deleteUser,
   getUserAds,
-  adminSearchUser
+  adminSearchUser,
+  register,
+    login,
+    sendPasswordResetCode,
+    confirmPasswordReset,
+    verifyEmail,
+    resendVerificationCode
+    
 } = require("../controllers/userController");
 const { protect, isAdmin } = require("../middlewares/authMiddleware");
 
 // ===== Register + Email OTP =====
-router.post("/register", registerUser);          // body: { firstname?, lastname?, username, email, phoneNumber, password?, pin6? }
+router.post("/register", register);          // body: { firstname?, lastname?, username, email, phoneNumber, password?, pin6? }
 router.post("/verify-otp", verifyOtp);           // body: { email, code }
 router.post("/resend-otp", resendOtp);           // body: { email }
 

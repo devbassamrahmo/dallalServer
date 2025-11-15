@@ -1,6 +1,8 @@
 const express = require('express');
+const http = require("http");
 const mongoose = require('mongoose');
 const bodyParser = require('body-parser');
+const { initNotificationSocket } = require("./sockets/notificationSocket.js");
 require('dotenv').config();
 const cors = require('cors');
 
@@ -22,6 +24,9 @@ app.use(
 // Routes
 const userRouter = require('./routes/userRouter');
 app.use('/user', userRouter);
+// Routes
+const authRouter = require('./routes/authRouter.js');
+app.use('/api/auth', authRouter);
 
 const adRouter = require('./routes/adRouter');
 app.use('/ad', adRouter);
@@ -46,11 +51,23 @@ app.use('/messages', messagesRouter);
 
 const publicRouter = require('./routes/publicRouter.js');
 app.use('/public', publicRouter);
+
+
+
+
+//sockets 
+
+const server = http.createServer(app);
+
+// لازم بعد ما تجهز app
+initNotificationSocket(server);
+
+
 // MongoDB Connection
 mongoose.connect(process.env.DB_URL)
   .then(() => {
     // Start the server after DB connection is successful
-    app.listen(PORT, () => {
+    server.listen(PORT, () => {
       console.log(`⁠ Server is running on port ${PORT}`);
     });
   })
