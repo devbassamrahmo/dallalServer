@@ -563,5 +563,99 @@ const unfeatureAd = async (req, res) => {
   }
 };
 
+const listUserAds = async (req, res) => {
+  try {
+    const { userId } = req.params;
 
-module.exports = { createAd, getAllAds, getAdById, deleteAd , approveAd, refreshAd , getUserAds , deleteByAdmin , getAllAdsAdmin , getPendingPosts , approveAll , rejectAll , updateAd , featureAd , unfeatureAd};
+    // pagination
+    const page = Math.max(1, Number(req.query.page || 1));
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit || 20)));
+    const skip = (page - 1) * limit;
+
+    const q = {
+      owner: userId,          // عدّلها لو عندك اسم ثاني للحقل (مثلاً: user, seller, createdBy)
+      isDeleted: false,       // لو عندك soft delete
+      isArchived: { $ne: true },
+    };
+
+    // فلتر اختياري حسب الحالة (مثلاً: active / pending / sold)
+    if (req.query.status) {
+      q.status = req.query.status;
+    }
+
+    // فلتر اختياري حسب التصنيف
+    if (req.query.category) {
+      q.category = req.query.category;
+    }
+
+    const [items, total] = await Promise.all([
+      Ad.find(q)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      Ad.countDocuments(q),
+    ]);
+
+    return res.json({
+      items,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit),
+      },
+    });
+  } catch (e) {
+    console.error("listUserAds error:", e);
+    return res
+      .status(500)
+      .json({ message: "خطأ أثناء جلب إعلانات المستخدم", error: e.message });
+  }
+};
+
+/**
+ * لو حابب تجيب إعلانات المستخدم الحالي (صاحب الجلسة)
+ * GET /api/ads/me
+ */
+const listMyAds = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const page = Math.max(1, Number(req.query.page || 1));
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit || 20)));
+    const skip = (page - 1) * limit;
+
+    const q = {
+      owner: userId,
+      isDeleted: false,
+      isArchived: { $ne: true },
+    };
+
+    if (req.query.status) q.status = req.query.status;
+
+    const [items, total] = await Promise.all([
+      Ad.find(q)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      Ad.countDocuments(q),
+    ]);
+
+    return res.json({
+      items,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit),
+      },
+    });
+  } catch (e) {
+    console.error("listMyAds error:", e);
+    return res
+      .status(500)
+      .json({ message: "خطأ أثناء جلب إعلاناتي", error: e.message });
+  }
+};
+
+module.exports = { createAd, getAllAds, getAdById, deleteAd , approveAd, refreshAd , getUserAds , deleteByAdmin , getAllAdsAdmin , getPendingPosts , approveAll , rejectAll , updateAd , featureAd , unfeatureAd , listUserAds};
