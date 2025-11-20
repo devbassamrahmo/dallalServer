@@ -567,25 +567,18 @@ const listUserAds = async (req, res) => {
   try {
     const { userId } = req.params;
 
-    // تأكد إنو الـ id صحيح
-    if (!mongoose.Types.ObjectId.isValid(userId)) {
-      return res.status(400).json({ message: "userId غير صالح" });
-    }
-
     // pagination
     const page = Math.max(1, Number(req.query.page || 1));
     const limit = Math.min(100, Math.max(1, Number(req.query.limit || 20)));
     const skip = (page - 1) * limit;
 
     const q = {
-      user: userId, // 👈 هون التعديل الأساسي
+      user: userId,   // 👈 هذا هو حقل صاحب الإعلان حسب السكيمة
     };
 
-    // بشكل افتراضي رجّع الإعلانات الـ approved بس (مشان البروفايل العام)
+    // لو حابب فلترة حسب الحالة (pending / approved / rejected)
     if (req.query.status) {
-      q.status = req.query.status;      // pending / approved / rejected
-    } else {
-      q.status = "approved";
+      q.status = req.query.status;
     }
 
     // فلتر اختياري حسب التصنيف
