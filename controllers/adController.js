@@ -567,20 +567,25 @@ const listUserAds = async (req, res) => {
   try {
     const { userId } = req.params;
 
+    // تأكد إنو الـ id صحيح
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ message: "userId غير صالح" });
+    }
+
     // pagination
     const page = Math.max(1, Number(req.query.page || 1));
     const limit = Math.min(100, Math.max(1, Number(req.query.limit || 20)));
     const skip = (page - 1) * limit;
 
     const q = {
-      owner: userId,          // عدّلها لو عندك اسم ثاني للحقل (مثلاً: user, seller, createdBy)
-      isDeleted: false,       // لو عندك soft delete
-      isArchived: { $ne: true },
+      user: userId, // 👈 هون التعديل الأساسي
     };
 
-    // فلتر اختياري حسب الحالة (مثلاً: active / pending / sold)
+    // بشكل افتراضي رجّع الإعلانات الـ approved بس (مشان البروفايل العام)
     if (req.query.status) {
-      q.status = req.query.status;
+      q.status = req.query.status;      // pending / approved / rejected
+    } else {
+      q.status = "approved";
     }
 
     // فلتر اختياري حسب التصنيف
@@ -591,6 +596,9 @@ const listUserAds = async (req, res) => {
     const [items, total] = await Promise.all([
       Ad.find(q)
         .sort({ createdAt: -1 })
+        .select(
+          "title location images category priceSYP priceUSD status isFeatured featuredUntil createdAt adNumber"
+        )
         .skip(skip)
         .limit(limit),
       Ad.countDocuments(q),
@@ -602,14 +610,15 @@ const listUserAds = async (req, res) => {
         page,
         limit,
         total,
-        pages: Math.ceil(total / limit),
+        pages: Math.ceil(total / Math.max(limit, 1)),
       },
     });
   } catch (e) {
     console.error("listUserAds error:", e);
-    return res
-      .status(500)
-      .json({ message: "خطأ أثناء جلب إعلانات المستخدم", error: e.message });
+    return res.status(500).json({
+      message: "خطأ أثناء جلب إعلانات المستخدم",
+      error: e.message,
+    });
   }
 };
 

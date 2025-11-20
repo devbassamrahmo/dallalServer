@@ -2,80 +2,98 @@ const express = require('express');
 const http = require("http");
 const mongoose = require('mongoose');
 const bodyParser = require('body-parser');
-const { initNotificationSocket } = require("./sockets/notificationSocket.js");
-require('dotenv').config();
 const cors = require('cors');
+require('dotenv').config();
+
+const { Server } = require("socket.io");
+const { initNotificationSocket } = require("./sockets/notificationSocket");
+const { initMessagesSocket } = require("./sockets/messagesSocket");
 
 const app = express();
 const PORT = process.env.PORT || 8000;
+
+const allowedOrigins = [
+  "http://localhost:3000",
+  "https://ecommerce3-ahmd.netlify.app",
+  "https://dallal-vert.vercel.app",
+  "https://dallal.sy",
+  "https://www.sy-dallal.com",
+  "https://e-commerce3-theta.vercel.app",
+];
 
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 
-// CORS setup with credentials and specific origin
+// CORS للـ REST API
 app.use(
   cors({
-    origin: ["http://localhost:3000", "https://ecommerce3-ahmd.netlify.app", "https://dallal-vert.vercel.app", "https://dallal.sy" , "https://www.sy-dallal.com" , "https://e-commerce3-theta.vercel.app"], // السماح بالموقع الحقيقي
-    credentials: true, // للسماح بالكوكيز إذا لزم الأمر
+    origin: allowedOrigins,
+    credentials: true,
   })
 );
+
 // Routes
 const userRouter = require('./routes/userRouter');
 app.use('/user', userRouter);
-// Routes
-const authRouter = require('./routes/authRouter.js');
+
+const authRouter = require('./routes/authRouter');
 app.use('/api/auth', authRouter);
 
 const adRouter = require('./routes/adRouter');
 app.use('/ad', adRouter);
 
-const adminRouter = require('./routes/admin.js');
+const adminRouter = require('./routes/admin');
 app.use('/img', adminRouter);
 
-const commentRoutes = require('./routes/commentRouter.js');
+const commentRoutes = require('./routes/commentRouter');
 app.use('/comments', commentRoutes);
 
-const exportsRoutes = require('./routes/export.js');
+const exportsRoutes = require('./routes/export');
 app.use('/export', exportsRoutes);
 
-const requresRoutes = require('./routes/requestRoutes.js');
+const requresRoutes = require('./routes/requestRoutes');
 app.use('/requests', requresRoutes);
 
-const notificationsRoutes = require('./routes/notificationsRouter.js');
+const notificationsRoutes = require('./routes/notificationsRouter');
 app.use('/notifications', notificationsRoutes);
 
-const messageRoutes = require("./routes/messageRouter.js");
+const messageRoutes = require("./routes/messageRouter");
 app.use("/messages", messageRoutes);
 
-const publicRouter = require('./routes/publicRouter.js');
+const publicRouter = require('./routes/publicRouter');
 app.use('/public', publicRouter);
 
+// Home route
+app.get('/', (req, res) => {
+  res.send("You are on the home page");
+});
 
-
-
-//sockets 
-
+// ============ HTTP + Socket.io ============
 const server = http.createServer(app);
 
-// لازم بعد ما تجهز app
-initNotificationSocket(server);
+const io = new Server(server, {
+  cors: {
+    origin: allowedOrigins,
+    credentials: true,
+  },
+});
 
+// ✅ سوكيت النوتيفيكيشن (JWT من handshake)
+initNotificationSocket(io);
 
-// MongoDB Connection
-mongoose.connect(process.env.DB_URL)
+// ✅ سوكيت الرسائل (Messenger)
+initMessagesSocket(io);
+
+// =============== Mongo + Start ===============
+mongoose
+  .connect(process.env.DB_URL)
   .then(() => {
-    // Start the server after DB connection is successful
     server.listen(PORT, () => {
-      console.log(`⁠ Server is running on port ${PORT}`);
+      console.log(`Server is running on port ${PORT}`);
     });
   })
   .catch((error) => {
     console.log('MongoDB connection error:', error);
   });
-
-// Home route for testing
-app.get('/', (req, res) => {
-  res.send("You are on the home page");
-});

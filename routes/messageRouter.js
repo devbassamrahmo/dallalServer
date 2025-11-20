@@ -7,4 +7,7 @@ router.post("/", protect, m.sendMessage); // POST /api/messages
 router.get("/conversations", protect, m.listMyConversations);
 router.get("/conversations/:id", protect, m.getConversationMessages);
 
+
+router.get("/unread", protect, m.getUnreadMessages);        
+router.get("/unread/count", protect, m.getUnreadCount); 
 module.exports = router;

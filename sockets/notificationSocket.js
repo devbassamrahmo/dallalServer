@@ -1,24 +1,19 @@
 // sockets/notificationSocket.js
-const { Server } = require("socket.io");
 const jwt = require("jsonwebtoken");
 
-let io;
+let ioInstance;
 const userSockets = new Map(); // userId -> Set(socketId)
 
-function initNotificationSocket(httpServer) {
-  io = new Server(httpServer, {
-    cors: {
-      origin: process.env.FRONTEND_ORIGIN || "*",
-      credentials: true,
-    },
-  });
+function initNotificationSocket(io) {
+  ioInstance = io;
 
-  io.on("connection", (socket) => {
+  ioInstance.on("connection", (socket) => {
     // نتوقع التوكن يجي من auth أو query
     const token =
       socket.handshake.auth?.token || socket.handshake.query?.token;
 
     if (!token) {
+      console.log("notifications: no token, disconnect");
       return socket.disconnect(true);
     }
 
@@ -26,6 +21,7 @@ function initNotificationSocket(httpServer) {
     try {
       payload = jwt.verify(token, process.env.JWT_SECRET);
     } catch (e) {
+      console.log("notifications: invalid token, disconnect");
       return socket.disconnect(true);
     }
 
@@ -35,6 +31,8 @@ function initNotificationSocket(httpServer) {
     if (!userSockets.has(userId)) userSockets.set(userId, new Set());
     userSockets.get(userId).add(socket.id);
 
+    console.log("notifications: user connected", userId, "socket:", socket.id);
+
     socket.on("disconnect", () => {
       const set = userSockets.get(userId);
       if (!set) return;
@@ -42,28 +40,29 @@ function initNotificationSocket(httpServer) {
       if (!set.size) {
         userSockets.delete(userId);
       }
+      console.log("notifications: user disconnected", userId);
     });
   });
 
   console.log("✅ WebSocket for notifications initialized");
-  return io;
+  return ioInstance;
 }
 
 // إرسال نوتيفيكيشن جديد لمستخدم معيّن
 function emitNotificationToUser(userId, notification) {
-  if (!io) return;
+  if (!ioInstance) return;
   const sockets = userSockets.get(String(userId));
   if (!sockets) return;
 
   sockets.forEach((sid) => {
-    io.to(sid).emit("notification:new", notification);
+    ioInstance.to(sid).emit("notification:new", notification);
   });
 }
 
 // بودكاست/إعلان عام يروح للجميع
 function emitBroadcastPodcast(podcastPayload) {
-  if (!io) return;
-  io.emit("podcast:new", podcastPayload);
+  if (!ioInstance) return;
+  ioInstance.emit("podcast:new", podcastPayload);
 }
 
 module.exports = {

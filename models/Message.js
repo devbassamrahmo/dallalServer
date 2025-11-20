@@ -12,6 +12,7 @@ const messageSchema = new Schema(
     from:   { type: Schema.Types.ObjectId, ref: "User", required: true },
     to:     { type: Schema.Types.ObjectId, ref: "User", required: true },
     body:   { type: String, required: true },
+    ad:     { type: Schema.Types.ObjectId, ref: "Ad" },
     isRead: { type: Boolean, default: false, index: true },
   },
   { timestamps: true }
