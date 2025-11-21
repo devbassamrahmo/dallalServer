@@ -176,10 +176,10 @@ exports.deleteMyNotification = async (req, res) => {
 // POST /notifications/podcast/broadcast   (Admin فقط)
 exports.broadcastPodcast = async (req, res) => {
   try {
-    const { title, body, audioUrl, thumbnailUrl } = req.body;
+    const { title, body } = req.body;
 
-    if (!title || !audioUrl) {
-      return res.status(400).json({ message: "title و audioUrl مطلوبين." });
+    if (!title ) {
+      return res.status(400).json({ message: "title مطلوب" });
     }
 
     // جيب كل المستخدمين
@@ -194,8 +194,6 @@ exports.broadcastPodcast = async (req, res) => {
       title,
       body,
       data: {
-        audioUrl,
-        thumbnailUrl,
         podcast: true,
         createdBy: req.user.id,
       },
@@ -207,8 +205,6 @@ exports.broadcastPodcast = async (req, res) => {
     emitBroadcastPodcast({
       title,
       body,
-      audioUrl,
-      thumbnailUrl,
       createdBy: req.user.id,
       createdAt: new Date(),
     });
