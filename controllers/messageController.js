@@ -20,7 +20,7 @@ const sendMessage = async (req, res) => {
       return res.status(400).json({ message: "لا يمكنك إرسال رسالة لنفسك." });
     }
 
-    // لو أرسلت من صفحة إعلان، adId بيوصل من الفرونت
+    // محادثة حسب المشاركين + الإعلان (لو موجود)
     let convo = await Conversation.findOne({
       participants: { $all: [fromId, to] },
       ...(adId ? { ad: adId } : {}),
@@ -33,20 +33,22 @@ const sendMessage = async (req, res) => {
       });
     }
 
+    // إنشاء الرسالة
     const msg = await Message.create({
       conversation: convo._id,
       from: fromId,
       to,
       body,
-      ad: convo.ad || adId || undefined, // 🔗 ربط الرسالة بالإعلان
+      ad: convo.ad || adId || undefined,
     });
 
+    // تحديث بيانات آخر رسالة بالمحادثة
     convo.lastMessage = body;
     convo.lastSender = fromId;
     convo.lastAt = new Date();
     await convo.save();
 
-    // نوتيفيكشن للمستلم
+    // Notification للمستلم
     await createNotification({
       userId: to,
       type: "MESSAGE",
@@ -55,17 +57,17 @@ const sendMessage = async (req, res) => {
       data: { conversationId: convo._id, from: fromId, adId: convo.ad || adId },
     });
 
-    // نعمل populate مشان السوكيت يبعث داتا جاهزة للواجهة
-    const populatedMsg = await msg
+    // 🔍 نعمل populate بشكل منفصل (ما منستعمل .populate على msg مباشرة بشكل متسلسل)
+    const populatedMsg = await Message.findById(msg._id)
       .populate("from", "username email phoneNumber")
       .populate("to", "username email phoneNumber")
       .populate("ad", "title priceSYP priceUSD");
 
-    const populatedConvo = await convo
+    const populatedConvo = await Conversation.findById(convo._id)
       .populate("participants", "username email phoneNumber isSellerVerified")
       .populate("ad", "title priceSYP priceUSD");
 
-    // 🔔 بث الرسالة عبر WebSocket
+    // 🔔 WebSocket: بث الرسالة للطرفين
     emitNewMessage({
       message: populatedMsg,
       conversation: populatedConvo,

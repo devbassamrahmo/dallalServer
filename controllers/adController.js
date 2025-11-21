@@ -9,6 +9,7 @@ const fs = require('fs');
 const path = require('path');
 const { createClient } = require('@supabase/supabase-js');
 require('dotenv').config();
+const mongoose = require("mongoose");
 
 // إعداد Supabase
 const supabase = createClient(
@@ -565,26 +566,33 @@ const unfeatureAd = async (req, res) => {
 
 const listUserAds = async (req, res) => {
   try {
-    const { userId } = req.params;
+    const { userId } = req.params; // ممكن يكون ID أو username
 
-    // pagination
     const page = Math.max(1, Number(req.query.page || 1));
     const limit = Math.min(100, Math.max(1, Number(req.query.limit || 20)));
     const skip = (page - 1) * limit;
 
-    const q = {
-      user: userId,   // 👈 هذا هو حقل صاحب الإعلان حسب السكيمة
-    };
+    let ownerId = null;
 
-    // لو حابب فلترة حسب الحالة (pending / approved / rejected)
-    if (req.query.status) {
-      q.status = req.query.status;
+    if (mongoose.Types.ObjectId.isValid(userId)) {
+      // مبعوت كـ ObjectId
+      ownerId = userId;
+    } else {
+      // اعتبره username
+      const userDoc = await User.findOne({
+        username: userId.toLowerCase(),
+      }).select("_id");
+
+      if (!userDoc) {
+        return res.status(404).json({ message: "المستخدم غير موجود" });
+      }
+      ownerId = userDoc._id;
     }
 
-    // فلتر اختياري حسب التصنيف
-    if (req.query.category) {
-      q.category = req.query.category;
-    }
+    const q = { user: ownerId };
+
+    if (req.query.status) q.status = req.query.status;
+    if (req.query.category) q.category = req.query.category;
 
     const [items, total] = await Promise.all([
       Ad.find(q)
@@ -596,6 +604,8 @@ const listUserAds = async (req, res) => {
         .limit(limit),
       Ad.countDocuments(q),
     ]);
+
+    
 
     return res.json({
       items,
