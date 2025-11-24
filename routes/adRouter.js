@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const { protect , isAdmin} = require("../middlewares/authMiddleware");
-const { createAd, getAllAds, getAdById, deleteAd , refreshAd , approveAd , getUserAds , deleteByAdmin , getAllAdsAdmin , getPendingPosts , approveAll , rejectAll , updateAd , featureAd , unfeatureAd , listUserAds} = require("../controllers/adController");
+const { createAd, getAllAds, getAdById, deleteAd , refreshAd , approveAd , getUserAds , deleteByAdmin , getAllAdsAdmin , getPendingPosts , approveAll , rejectAll , updateAd , featureAd , unfeatureAd , listUserAds ,getSimilarAds} = require("../controllers/adController");
 const upload = require("../middlewares/multer");
 
 router.put('/approve-all' , protect , isAdmin , approveAll)
@@ -9,6 +9,7 @@ router.put('/reject-all' , protect , isAdmin , rejectAll)
 // ✅ Public Routes
 router.get("/", getAllAds);
 router.get("/my-ads", protect, getUserAds);
+router.get("/:adId/similar", getSimilarAds);
 router.get("/:id", getAdById);
 
 // ✅ Protected Routes (Authenticated Users Only)
@@ -24,11 +25,16 @@ router.put("/:id", protect, upload.array("images", 5), updateAd);
 // ✅ Admin Routes
 router.put("/:id/approve", protect, isAdmin, approveAd);
 
+
+
 //featured
 
 router.put("/:id/feature", protect, isAdmin, featureAd);
 router.put("/:id/unfeature", protect, isAdmin, unfeatureAd);
 
 router.get("/user/:userId", listUserAds);
+
+
+
 
 module.exports = router;

@@ -670,4 +670,70 @@ const listMyAds = async (req, res) => {
   }
 };
 
-module.exports = { createAd, getAllAds, getAdById, deleteAd , approveAd, refreshAd , getUserAds , deleteByAdmin , getAllAdsAdmin , getPendingPosts , approveAll , rejectAll , updateAd , featureAd , unfeatureAd , listUserAds};
+const getSimilarAds = async (req, res) => {
+  try {
+    const { adId } = req.params;
+    const limit = Math.min(50, Number(req.query.limit) || 10);
+
+    // جيب الإعلان الأساسي
+    const mainAd = await Ad.findById(adId);
+    if (!mainAd) {
+      return res.status(404).json({ message: "الإعلان غير موجود" });
+    }
+
+    // رينج السعر (مثلاً ±30%)
+    const priceMin = mainAd.priceUSD * 0.7;
+    const priceMax = mainAd.priceUSD * 1.3;
+
+    // الاستعلام الأساسي: نفس الكاتيجوري + نفس اللوكيشن + رينج السعر
+    const baseQuery = {
+      _id: { $ne: mainAd._id },
+      category: mainAd.category,
+      status: "approved",
+      priceUSD: { $gte: priceMin, $lte: priceMax },
+      location: mainAd.location,
+    };
+
+    let items = await Ad.find(baseQuery)
+      .sort({ isFeatured: -1, createdAt: -1 })
+      .select(
+        "title location images category priceSYP priceUSD status isFeatured featuredUntil createdAt adNumber"
+      )
+      .limit(limit);
+
+    // 👇 لو طلع العدد أقل من المطلوب، نكمّل من نفس الكاتيجوري بس بدون شرط اللوكيشن
+    if (items.length < limit) {
+      const remaining = limit - items.length;
+
+      const fallbackQuery = {
+        _id: { $ne: mainAd._id },
+        category: mainAd.category,
+        status: "approved",
+        priceUSD: { $gte: priceMin, $lte: priceMax },
+        location: { $ne: mainAd.location }, // غير نفس المكان
+      };
+
+      const more = await Ad.find(fallbackQuery)
+        .sort({ isFeatured: -1, createdAt: -1 })
+        .select(
+          "title location images category priceSYP priceUSD status isFeatured featuredUntil createdAt adNumber"
+        )
+        .limit(remaining);
+
+      items = items.concat(more);
+    }
+
+    return res.json({
+      mainAdId: mainAd._id,
+      items,
+    });
+  } catch (e) {
+    console.error("getSimilarAds error:", e);
+    return res.status(500).json({
+      message: "خطأ أثناء جلب الإعلانات المشابهة",
+      error: e.message,
+    });
+  }
+};
+
+module.exports = { createAd, getAllAds, getAdById, deleteAd , approveAd, refreshAd , getUserAds , deleteByAdmin , getAllAdsAdmin , getPendingPosts , approveAll , rejectAll , updateAd , featureAd , unfeatureAd , listUserAds , getSimilarAds};
