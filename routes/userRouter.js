@@ -103,7 +103,8 @@ const {
     sendPasswordResetCode,
     confirmPasswordReset,
     verifyEmail,
-    resendVerificationCode
+    resendVerificationCode,
+    
     
 } = require("../controllers/userController");
 const { protect, isAdmin } = require("../middlewares/authMiddleware");

@@ -1015,7 +1015,186 @@ const resendVerificationCode = async (req, res) => {
   }
 };
 
+const registerClassic = async (req, res) => {
+  try {
+    const { username, email, phoneNumber, password, firstname, lastname } = req.body;
 
+    if (!username || !email || !phoneNumber || !password) {
+      return res.status(400).json({ message: "username, email, phoneNumber, password مطلوبة." });
+    }
+    if (String(password).length < 8) {
+      return res.status(400).json({ message: "كلمة المرور يجب أن تكون 8 أحرف على الأقل." });
+    }
+
+    const usernameLC = String(username).trim().toLowerCase();
+    const emailLC = String(email).trim().toLowerCase();
+    const phoneDigits = normalizePhoneToDigits(phoneNumber);
+
+    if (await User.findOne({ username: usernameLC })) {
+      return res.status(409).json({ message: "اسم المستخدم محجوز." });
+    }
+    if (await User.findOne({ email: emailLC })) {
+      return res.status(409).json({ message: "البريد الإلكتروني مستخدم مسبقًا." });
+    }
+    if (await User.findOne({ phoneNumber: phoneDigits })) {
+      return res.status(409).json({ message: "رقم الهاتف مستخدم مسبقًا." });
+    }
+
+    const hashedPassword = await bcrypt.hash(String(password), SALT_ROUNDS);
+    const otp = generate6Digit();
+
+    const user = await User.create({
+      firstname,
+      lastname,
+      username: usernameLC,
+      email: emailLC,
+      phoneNumber: phoneDigits,
+      password: hashedPassword,
+      isVerified: false,
+      otp,
+      otpExpires: new Date(Date.now() + 10 * 60 * 1000),
+    });
+
+    await sendEmail(
+      emailLC,
+      "رمز تفعيل حسابك - Dallal",
+      `<p>رمز التفعيل هو: <b style="letter-spacing:4px;">${otp}</b></p><p>صالح لمدة 10 دقائق.</p>`
+    );
+
+    return res.status(201).json({
+      message: "تم إنشاء الحساب. تحقق من بريدك لإدخال رمز التفعيل.",
+      // لا نرجع token قبل التفعيل
+    });
+  } catch (err) {
+    console.error("registerClassic error:", err);
+    return res.status(500).json({ message: "خطأ أثناء التسجيل", error: err.message });
+  }
+};
+
+/* =====================
+   14) Classic login: email + password
+   ===================== */
+const loginClassic = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) return res.status(400).json({ message: "email و password مطلوبين." });
+
+    const emailLC = String(email).trim().toLowerCase();
+
+    const user = await User.findOne({ email: emailLC })
+      .select("+password failedLoginAttempts lockedUntil role username email phoneNumber isVerified");
+
+    if (!user) return res.status(404).json({ message: "المستخدم غير موجود." });
+
+    // لازم يكون مفعّل (نفس منطقك)
+    if (!user.isVerified) {
+      return res.status(403).json({ message: "الحساب غير موثّق. فعّل حسابك عبر البريد أولاً." });
+    }
+
+    // قفل مؤقت
+    if (user.lockedUntil && new Date() < user.lockedUntil) {
+      const remainingMin = Math.ceil((user.lockedUntil - Date.now()) / 60000);
+      return res.status(423).json({ message: `الحساب مقفول مؤقتًا. حاول بعد ${remainingMin} دقيقة.` });
+    }
+
+    const ok = user.password ? await bcrypt.compare(String(password), user.password) : false;
+    if (!ok) {
+      user.failedLoginAttempts = (user.failedLoginAttempts || 0) + 1;
+      if (user.failedLoginAttempts >= 5) {
+        user.lockedUntil = new Date(Date.now() + 15 * 60 * 1000);
+      }
+      await user.save();
+
+      const remaining = Math.max(0, 5 - user.failedLoginAttempts);
+      if (remaining > 0) {
+        return res.status(401).json({ message: `كلمة المرور غير صحيحة. تبقى ${remaining} محاولات قبل القفل.` });
+      }
+      return res.status(423).json({ message: "تم قفل الحساب مؤقتًا لمدة 15 دقيقة بسبب محاولات متكررة." });
+    }
+
+    user.failedLoginAttempts = 0;
+    user.lockedUntil = undefined;
+    await user.save();
+
+    const token = signToken(user);
+    return res.status(200).json({ message: "تم تسجيل الدخول بنجاح ✅", user: sanitizeUser(user), token });
+  } catch (err) {
+    console.error("loginClassic error:", err);
+    return res.status(500).json({ message: "حدث خطأ أثناء تسجيل الدخول.", error: err.message });
+  }
+};
+
+/* =====================
+   15) Forgot password (code): email -> send code
+   ===================== */
+const forgotPasswordByCode = async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ message: "email مطلوب." });
+
+    const emailLC = String(email).trim().toLowerCase();
+    const user = await User.findOne({ email: emailLC });
+
+    // رد محايد
+    if (!user) return res.status(200).json({ message: "إن وُجد حساب سنرسل كود إعادة التعيين." });
+
+    const code = generate6Digit();
+    user.otp = code;
+    user.otpExpires = new Date(Date.now() + 10 * 60 * 1000);
+    await user.save();
+
+    await sendEmail(
+      user.email,
+      "رمز إعادة تعيين كلمة المرور - Dallal",
+      `<p>رمز إعادة التعيين هو: <b style="letter-spacing:4px;">${code}</b></p><p>صالح 10 دقائق.</p>`
+    );
+
+    return res.status(200).json({ message: "إن وُجد حساب سنرسل كود إعادة التعيين." });
+  } catch (err) {
+    console.error("forgotPasswordByCode error:", err);
+    return res.status(500).json({ message: "خطأ أثناء إرسال كود إعادة التعيين.", error: err.message });
+  }
+};
+
+/* =====================
+   16) Reset password (code): email + code + newPassword
+   ===================== */
+const resetPasswordByCode = async (req, res) => {
+  try {
+    const { email, code, newPassword } = req.body;
+    if (!email || !code || !newPassword) {
+      return res.status(400).json({ message: "email و code و newPassword مطلوبة." });
+    }
+    if (String(newPassword).length < 8) {
+      return res.status(400).json({ message: "كلمة المرور يجب أن تكون 8 أحرف على الأقل." });
+    }
+
+    const emailLC = String(email).trim().toLowerCase();
+    const user = await User.findOne({ email: emailLC }).select("+password otp otpExpires failedLoginAttempts lockedUntil");
+
+    if (!user || !user.otp || !user.otpExpires) {
+      return res.status(400).json({ message: "الرمز غير صالح أو غير مُصدَر." });
+    }
+    if (new Date() > new Date(user.otpExpires)) {
+      return res.status(400).json({ message: "انتهت صلاحية الرمز. اطلب رمزًا جديدًا." });
+    }
+    if (Number(code) !== Number(user.otp)) {
+      return res.status(400).json({ message: "رمز غير صحيح." });
+    }
+
+    user.password = await bcrypt.hash(String(newPassword), SALT_ROUNDS);
+    user.otp = undefined;
+    user.otpExpires = undefined;
+    user.failedLoginAttempts = 0;
+    user.lockedUntil = undefined;
+    await user.save();
+
+    return res.status(200).json({ message: "تم تغيير كلمة المرور بنجاح." });
+  } catch (err) {
+    console.error("resetPasswordByCode error:", err);
+    return res.status(500).json({ message: "خطأ أثناء تغيير كلمة المرور.", error: err.message });
+  }
+};
 
 
 
@@ -1055,7 +1234,11 @@ module.exports = {
   sendPasswordResetCode,
   confirmPasswordReset,
   verifyEmail,
-  resendVerificationCode
+  resendVerificationCode,
   
-  
+  forgotPasswordByCode,
+  registerClassic,
+  loginClassic,
+  resetPasswordByCode
+
 };

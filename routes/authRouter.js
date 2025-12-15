@@ -8,6 +8,10 @@ const {
   confirmPasswordReset,
   verifyEmail,
   resendVerificationCode,
+  registerClassic,
+loginClassic,
+forgotPasswordByCode,
+resetPasswordByCode
 } = require("../controllers/userController");
 
 const router = express.Router();
@@ -29,5 +33,10 @@ router.post("/verify-email", verifyEmail);
 
 // إعادة إرسال كود التفعيل
 router.post("/verify-email/resend", resendVerificationCode);
+
+router.post("/classic/register", registerClassic);         // body: { username, email, phoneNumber, password, firstname?, lastname? }
+router.post("/classic/login", loginClassic);               // body: { email, password }
+router.post("/classic/password/forgot", forgotPasswordByCode); // body: { email }
+router.post("/classic/password/reset", resetPasswordByCode);   // body: { email, code, newPassword }
 
 module.exports = router;
