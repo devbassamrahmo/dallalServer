@@ -1041,7 +1041,6 @@ const registerClassic = async (req, res) => {
     }
 
     const hashedPassword = await bcrypt.hash(String(password), SALT_ROUNDS);
-    const otp = generate6Digit();
 
     const user = await User.create({
       firstname,
@@ -1050,20 +1049,18 @@ const registerClassic = async (req, res) => {
       email: emailLC,
       phoneNumber: phoneDigits,
       password: hashedPassword,
-      isVerified: false,
-      otp,
-      otpExpires: new Date(Date.now() + 10 * 60 * 1000),
+
+      // ✅ Active فوراً بدون OTP
+      isVerified: true,
+      otp: undefined,
+      otpExpires: undefined,
     });
 
-    await sendEmail(
-      emailLC,
-      "رمز تفعيل حسابك - Dallal",
-      `<p>رمز التفعيل هو: <b style="letter-spacing:4px;">${otp}</b></p><p>صالح لمدة 10 دقائق.</p>`
-    );
-
+    const token = signToken(user);
     return res.status(201).json({
-      message: "تم إنشاء الحساب. تحقق من بريدك لإدخال رمز التفعيل.",
-      // لا نرجع token قبل التفعيل
+      message: "تم إنشاء الحساب بنجاح ✅",
+      user: sanitizeUser(user),
+      token,
     });
   } catch (err) {
     console.error("registerClassic error:", err);
@@ -1087,9 +1084,7 @@ const loginClassic = async (req, res) => {
     if (!user) return res.status(404).json({ message: "المستخدم غير موجود." });
 
     // لازم يكون مفعّل (نفس منطقك)
-    if (!user.isVerified) {
-      return res.status(403).json({ message: "الحساب غير موثّق. فعّل حسابك عبر البريد أولاً." });
-    }
+    
 
     // قفل مؤقت
     if (user.lockedUntil && new Date() < user.lockedUntil) {
