@@ -48,7 +48,7 @@ const upload = require('../middlewares/upload'); // Multer memory storage
 const { protect, isAdmin } = require('../middlewares/authMiddleware');
 const { supabase } = require('../config/supabase');
 
-const BUCKET = process.env.SUPABASE_BUCKET || 'ads-images';
+const BUCKET = process.env.SUPABASE_BUCKET || 'listings-images';
 
 // ✅ Upload Sponsor Image (Admin Only)
 router.post(

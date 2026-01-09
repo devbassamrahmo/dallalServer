@@ -6,7 +6,7 @@
 // const storage = new CloudinaryStorage({
 //     cloudinary: cloudinary,
 //     params: {
-//         folder: 'ads_images', // Cloudinary folder name
+//         folder: 'listings_images', // Cloudinary folder name
 //         format: async (req, file) => 'png', // Convert to PNG
 //         public_id: (req, file) => `${Date.now()}-${file.originalname}`,
 //     },

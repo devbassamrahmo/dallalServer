@@ -39,7 +39,7 @@ const createAd = async (req, res) => {
       const fileName = `${Date.now()}_${file.originalname}`;
 
       const { error } = await supabase.storage
-        .from("ads")
+        .from("listings")
         .upload(`images/${fileName}`, buffer, {
           contentType: file.mimetype,
           upsert: true,
@@ -52,7 +52,7 @@ const createAd = async (req, res) => {
         return res.status(500).json({ message: `Error uploading image: ${file.originalname}` });
       }
 
-      const publicUrl = `https://knhyreehsrzllzmhuaah.supabase.co/storage/v1/object/public/ads/images/${fileName}`;
+      const publicUrl = `https://knhyreehsrzllzmhuaah.supabase.co/storage/v1/object/public/listings/images/${fileName}`;
       imageUrls.push(publicUrl);
     }
 
